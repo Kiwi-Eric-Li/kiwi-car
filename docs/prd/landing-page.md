@@ -1,313 +1,421 @@
-# KiwiCar - Landing Page 设计文档
+# KiwiCar Landing Page PRD
 
-> 新西兰二手车交易平台 | 安全·透明·高效
-
----
-
-## 页面结构
-
-### 1. 导航栏 (Navigation Bar)
-
-```
-[Logo: KiwiCar]    [买车] [卖车] [车牌查询] [关于我们]    [登录] [免费注册]
-```
-
-- Logo: 采用绿色主色调，融入新西兰Kiwi鸟元素
-- 导航项固定在顶部，滚动时保持可见
-- CTA按钮"免费注册"使用醒目的绿色
+**Document Version:** 1.0
+**Created:** January 2026
+**Status:** Draft
+**Type:** Copy Modification Guide
 
 ---
 
-### 2. Hero区域 (首屏)
+## 1. Overview
 
-**主标题:**
-```
-在新西兰，买卖二手车从未如此简单
-```
+### 1.1 Purpose
 
-**副标题:**
-```
-AI智能定价 · 车辆历史透明 · 安全交易保障
-```
+This document defines the copy and content modifications needed to customize the existing Next.js landing page template for KiwiCar - New Zealand's AI-powered used car trading platform.
 
-**核心行动按钮:**
-```
-[我要买车]  [我要卖车]
-```
+### 1.2 Template Structure
 
-**背景:**
-- 新西兰风景（如皇后镇、奥克兰天际线）+ 优质二手车图片的融合
-- 半透明渐变覆盖层，确保文字可读性
+The landing page uses a Next.js template with the following sections:
+- **Navbar** - Navigation links and logo
+- **Hero Section** - Main headline, subheadline, social proof, CTAs
+- **Company Logos** - Trust badges/social proof marquee
+- **Features Section** - 4 feature cards highlighting key value propositions
+- **Pricing Section** - 3-tier pricing (to be converted to value proposition)
+- **FAQ Section** - Common questions and answers
+- **CTA Section** - Final call-to-action
+- **Footer** - Links, contact info, copyright
 
-**信任徽章区域:**
-```
-✓ 10,000+ 真实车源  |  ✓ NZTA官方数据  |  ✓ 100%真实车况
-```
+### 1.3 Files to Modify
 
----
-
-### 3. 核心价值主张 (Value Proposition)
-
-**标题:** 为什么选择 KiwiCar?
-
-| 图标 | 标题 | 描述 |
-|------|------|------|
-| 🔍 | **一键查车况** | 输入车牌号，即刻获取NZTA官方认证的WOF、里程、事故记录等完整历史 |
-| 🤖 | **AI智能定价** | 基于市场大数据分析，为你的爱车给出最合理的市场估价 |
-| 📸 | **30秒极速发布** | 上传照片，AI自动生成专业车况描述，无需费心文案 |
-| 🔔 | **降价即时提醒** | 收藏心仪车辆，价格变动第一时间邮件通知 |
+| File | Purpose |
+|------|---------|
+| `data/navLinks.js` | Navigation menu items |
+| `data/featuresData.js` | Feature cards content |
+| `data/pricingData.js` | Value proposition tiers (or remove section) |
+| `data/faqsData.js` | FAQ questions and answers |
+| `data/companiesLogo.js` | Partner/trust logos |
+| `app/(publicPages)/page.jsx` | Hero section copy, CTA text |
+| `components/Footer.jsx` | Footer copy, contact info |
+| `components/Navbar.jsx` | Logo, CTA buttons |
+| `public/assets/` | Logo files, images |
 
 ---
 
-### 4. 功能展示区 - 买家视角
+## 2. Brand Voice & Messaging
 
-**标题:** 找到你的完美座驾
+### 2.1 Brand Positioning
 
-**左侧 - 功能描述:**
-```
-智能搜索，精准匹配
+**Tagline:** "Buy and sell cars with confidence"
 
-• 按品牌、车型、价格、年份筛选
-• 按地区（Auckland, Wellington, Christchurch...）定位
-• 查看完整车辆历史报告
-• 一键收藏，价格变动提醒
-• 直接联系卖家，安全沟通
-```
+**Value Proposition:** KiwiCar makes used car trading in New Zealand safe, transparent, and effortless through AI-powered vehicle analysis, official NZTA data integration, and smart pricing tools.
 
-**右侧 - 界面示意图:**
-展示车源列表页面的模拟界面截图
+### 2.2 Tone of Voice
 
-**CTA按钮:**
-```
-[开始找车 →]
-```
+- **Trustworthy** - Emphasize safety, transparency, official data
+- **Modern** - Highlight AI technology without being intimidating
+- **Local** - NZ-focused, understands local market
+- **Helpful** - Solves real problems for buyers and sellers
+- **Simple** - Easy to understand, no jargon
 
----
+### 2.3 Key Messages
 
-### 5. 功能展示区 - 卖家视角
-
-**标题:** 轻松卖出好价钱
-
-**右侧 - 功能描述:**
-```
-AI助力，省时省心
-
-1️⃣ 输入车牌号 - 自动获取车辆基本信息
-2️⃣ 上传照片 - 支持最多10张高清图片
-3️⃣ AI生成描述 - 专业文案一键生成
-4️⃣ 智能定价 - 参考市场行情合理估价
-5️⃣ 一键发布 - 覆盖全新西兰买家
-```
-
-**左侧 - 界面示意图:**
-展示卖车发布流程的模拟界面
-
-**CTA按钮:**
-```
-[免费发布车辆 →]
-```
+1. **For Buyers:** "Know exactly what you're buying with official NZTA data and AI analysis"
+2. **For Sellers:** "List your car in 30 seconds with AI-powered descriptions and smart pricing"
+3. **Trust Factor:** "Every vehicle checked against official New Zealand records"
 
 ---
 
-### 6. 车牌查询功能展示
+## 3. Section-by-Section Copy
 
-**标题:** 输入车牌，了解一切
+### 3.1 Navbar (`data/navLinks.js`)
 
-**搜索框设计:**
-```
-┌─────────────────────────────────────────┐
-│  🔍  输入车牌号（如 ABC123）    [查询]  │
-└─────────────────────────────────────────┘
-```
-
-**查询结果示例卡片:**
-```
-┌─────────────────────────────────────────────────┐
-│  Toyota Corolla 2018                            │
-│  ─────────────────────────────────────────────  │
-│  📋 WOF状态: 有效至 2024年8月                    │
-│  📊 里程数: 85,432 km                           │
-│  ⚠️  事故记录: 无                                │
-│  📅 首次注册: 2018年3月                          │
-│  🔧 最近检修: 2024年2月                          │
-│                                                 │
-│  [查看完整报告]  [查找同款在售车辆]               │
-└─────────────────────────────────────────────────┘
+```javascript
+export const navLinks = [
+    { name: "Home", href: "/" },
+    { name: "Buy a Car", href: "#buy" },
+    { name: "Sell Your Car", href: "#sell" },
+    { name: "Plate Lookup", href: "#lookup" },
+    { name: "How It Works", href: "#how-it-works" },
+];
 ```
 
-**说明文字:**
+**CTA Buttons:**
+- Primary: "List Your Car" → Links to frontend app `/sell`
+- Secondary: "Sign In" → Links to frontend app `/login`
+
+---
+
+### 3.2 Hero Section (`app/(publicPages)/page.jsx`)
+
+**Social Proof Badge:**
 ```
-数据来源于NZTA官方数据库，真实可靠
+"Trusted by 10,000+ Kiwi car buyers and sellers"
+```
+
+**Headline:**
+```
+Buy and sell cars with confidence
+```
+
+**Subheadline:**
+```
+New Zealand's smartest car marketplace. Check any vehicle's history with official NZTA data, get AI-powered pricing, and list your car in under 30 seconds.
+```
+
+**Primary CTA:** "Find Your Next Car"
+**Secondary CTA:** "Sell Your Car"
+
+**Trust Line (above logo marquee):**
+```
+"Powered by official data from —"
 ```
 
 ---
 
-### 7. 用户评价/社会认证
+### 3.3 Company Logos (`data/companiesLogo.js`)
 
-**标题:** 听听他们怎么说
+Replace generic logos with relevant NZ automotive/trust indicators:
 
-**评价卡片 1:**
-```
-⭐⭐⭐⭐⭐
-"在KiwiCar上卖掉了我的Mazda，AI定价非常准确，
-3天就成交了！整个过程非常顺畅。"
+| Logo | Purpose |
+|------|---------|
+| NZTA Logo | Official vehicle data source |
+| Waka Kotahi | Transport authority |
+| VTNZ | Vehicle testing |
+| AA (optional) | Automotive association |
 
-— Sarah M., Auckland
-```
+**Note:** Ensure proper licensing/permission for logo usage.
 
-**评价卡片 2:**
-```
-⭐⭐⭐⭐⭐
-"车牌查询功能太实用了，避免了买到事故车的风险。
-买车前一定要用这个查一查。"
+---
 
-— James L., Wellington
-```
+### 3.4 Features Section (`data/featuresData.js`)
 
-**评价卡片 3:**
-```
-⭐⭐⭐⭐⭐
-"作为新移民，对新西兰二手车市场不熟悉。
-KiwiCar的AI定价帮我买到了性价比超高的车！"
+**Section Title:** "Why Choose KiwiCar"
+**Section Subtitle:** "Everything you need to buy or sell with confidence"
 
-— Wei C., Christchurch
+```javascript
+export const featuresData = [
+    {
+        icon: ShieldCheckIcon,
+        title: "Official NZTA Data",
+        description: "Check WOF, Rego, odometer history, and more from official NZ Transport Agency records."
+    },
+    {
+        icon: SparklesIcon,
+        title: "AI Smart Pricing",
+        description: "Get accurate market valuations based on real NZ sales data. Know the fair price instantly."
+    },
+    {
+        icon: ZapIcon,
+        title: "30-Second Listing",
+        description: "Enter your plate number, upload photos, and let AI write your description. Done in seconds."
+    },
+    {
+        icon: BellIcon,
+        title: "Price Drop Alerts",
+        description: "Save your searches and get notified when prices drop on cars you're watching."
+    }
+];
 ```
 
 ---
 
-### 8. 数据统计展示
+### 3.5 "How It Works" Section (New Section - Optional)
 
-**标题:** 新西兰人信赖的选择
+Consider adding a step-by-step section:
 
-```
-┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
-│   10,000+  │  │    5,000+  │  │     98%    │  │   $50M+    │
-│   活跃车源  │  │   成功交易  │  │   满意度   │  │  交易总额   │
-└────────────┘  └────────────┘  └────────────┘  └────────────┘
+**For Buyers:**
+1. **Search** - Browse thousands of verified listings
+2. **Check** - View official vehicle history with one click
+3. **Compare** - See AI price analysis vs asking price
+4. **Connect** - Message sellers directly through the platform
+
+**For Sellers:**
+1. **Enter Plate** - We auto-fill your car details from NZTA
+2. **Add Photos** - Upload up to 10 photos
+3. **AI Description** - Get a professional listing written for you
+4. **Set Price** - Use AI pricing to set a competitive price
+5. **Go Live** - Your listing is active in seconds
+
+---
+
+### 3.6 Pricing Section → Value Proposition (`data/pricingData.js`)
+
+**Option A: Remove Pricing Section**
+Since KiwiCar is initially free for users, consider removing the pricing section entirely.
+
+**Option B: Convert to "Free vs Premium" Comparison**
+
+```javascript
+export const pricingData = [
+    {
+        title: "Buyers",
+        price: "Free",
+        priceLabel: "Always free",
+        features: [
+            { name: "Browse all listings", icon: CheckIcon },
+            { name: "3 plate lookups per day", icon: CheckIcon },
+            { name: "Save favorites", icon: CheckIcon },
+            { name: "Price drop alerts", icon: CheckIcon },
+            { name: "Message sellers", icon: CheckIcon },
+        ],
+        buttonText: "Start Browsing",
+    },
+    {
+        title: "Sellers",
+        price: "Free",
+        priceLabel: "No listing fees",
+        mostPopular: true,
+        features: [
+            { name: "Unlimited listings", icon: CheckIcon },
+            { name: "AI-generated descriptions", icon: CheckIcon },
+            { name: "Smart pricing suggestions", icon: CheckIcon },
+            { name: "Listing analytics", icon: CheckIcon },
+            { name: "Direct buyer messages", icon: CheckIcon },
+        ],
+        buttonText: "List Your Car",
+    },
+    {
+        title: "Coming Soon",
+        price: "Pro",
+        priceLabel: "Premium features",
+        features: [
+            { name: "Unlimited plate lookups", icon: CheckIcon },
+            { name: "Featured listings", icon: CheckIcon },
+            { name: "Advanced analytics", icon: CheckIcon },
+            { name: "Priority support", icon: CheckIcon },
+            { name: "Dealer tools", icon: CheckIcon },
+        ],
+        buttonText: "Join Waitlist",
+    }
+];
 ```
 
 ---
 
-### 9. 常见问题 (FAQ)
+### 3.7 FAQ Section (`data/faqsData.js`)
 
-**标题:** 常见问题
-
-**Q: KiwiCar是免费的吗？**
-A: 是的！浏览车源、查询车牌、收藏车辆完全免费。发布车辆信息基础版本也是免费的。
-
-**Q: 车辆信息数据来源是什么？**
-A: 我们的车辆历史数据直接来源于NZTA（新西兰交通局）官方数据库，确保信息真实准确。
-
-**Q: AI定价准确吗？**
-A: 我们的AI定价系统基于新西兰二手车市场数万条真实交易数据训练，综合考虑品牌、车型、年份、里程、车况等多重因素，准确率达到95%以上。
-
-**Q: 如何保障交易安全？**
-A: 我们提供交易指南和安全提示，建议使用银行转账并在公共场所验车。平台对可疑账户进行监控和封禁。
-
-**Q: 支持哪些地区？**
-A: 目前覆盖新西兰全境，包括Auckland、Wellington、Christchurch、Hamilton、Tauranga等主要城市。
-
----
-
-### 10. 最终行动号召 (Final CTA)
-
-**背景:** 渐变色块或高质量图片
-
-**标题:**
-```
-准备好开始了吗？
-```
-
-**副标题:**
-```
-加入10,000+新西兰人，体验更智能的二手车交易
-```
-
-**按钮:**
-```
-[免费注册，立即开始]
-```
-
-**辅助文字:**
-```
-无需信用卡 · 30秒完成注册 · 永久免费基础功能
+```javascript
+export const faqsData = [
+    {
+        question: "What is KiwiCar?",
+        answer: "KiwiCar is New Zealand's AI-powered used car marketplace. We combine official NZTA vehicle data with smart AI tools to make buying and selling cars safer, faster, and more transparent."
+    },
+    {
+        question: "How does the plate lookup work?",
+        answer: "Enter any NZ plate number and we'll show you the vehicle's official details from NZTA including WOF status, registration expiry, odometer readings, and more. It's the same data used by mechanics and dealers."
+    },
+    {
+        question: "Is KiwiCar free to use?",
+        answer: "Yes! Browsing listings, saving favorites, and contacting sellers is completely free. Sellers can list their cars at no cost. We offer premium features for power users coming soon."
+    },
+    {
+        question: "How does AI pricing work?",
+        answer: "Our AI analyzes thousands of NZ car sales to estimate fair market value based on make, model, year, mileage, and condition. It helps buyers spot good deals and helps sellers price competitively."
+    },
+    {
+        question: "How fast can I list my car?",
+        answer: "Most sellers complete their listing in under 30 seconds. Just enter your plate number (we auto-fill the details), upload a few photos, and our AI writes a professional description for you."
+    },
+    {
+        question: "Is my data safe?",
+        answer: "Absolutely. We use industry-standard encryption and never share your personal information. Phone numbers are hidden until you choose to share them with a buyer or seller."
+    },
+    {
+        question: "What areas do you cover?",
+        answer: "KiwiCar is available nationwide across New Zealand. You can filter listings by region to find cars near you."
+    }
+];
 ```
 
 ---
 
-### 11. 页脚 (Footer)
+### 3.8 CTA Section (`app/(publicPages)/page.jsx`)
 
+**Headline:**
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│  [Logo: KiwiCar]                                                    │
-│  新西兰领先的二手车交易平台                                           │
-│                                                                     │
-│  ─────────────────────────────────────────────────────────────────  │
-│                                                                     │
-│  买车                卖车               帮助                公司     │
-│  • 浏览车源          • 发布车辆         • 使用指南          • 关于我们│
-│  • 车牌查询          • 定价估算         • 安全交易指南      • 联系我们│
-│  • 收藏夹            • 管理我的车源     • 常见问题          • 隐私政策│
-│  • 降价提醒          • 优化推广         • 联系客服          • 服务条款│
-│                                                                     │
-│  ─────────────────────────────────────────────────────────────────  │
-│                                                                     │
-│  📧 support@kiwicar.co.nz    📱 关注我们: [FB] [Instagram] [Twitter] │
-│                                                                     │
-│  © 2024 KiwiCar. All rights reserved. Made with ❤️ in New Zealand  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+Ready to find your perfect car?
+```
+
+**Subheadline:**
+```
+Join thousands of Kiwis who buy and sell smarter with KiwiCar.
+```
+
+**Primary CTA:** "Browse Cars" → Links to `/buy`
+**Secondary CTA:** "List Your Car" → Links to `/sell`
+
+---
+
+### 3.9 Footer (`components/Footer.jsx`)
+
+**Tagline:**
+```
+New Zealand's smartest car marketplace. Buy and sell with confidence using AI-powered tools and official NZTA data.
+```
+
+**Navigation Columns:**
+
+**Column 1: "Marketplace"**
+- Buy a Car
+- Sell Your Car
+- Plate Lookup
+- Price Alerts
+
+**Column 2: "Company"**
+- About Us
+- How It Works
+- Contact
+- Blog (future)
+
+**Column 3: "Legal"**
+- Terms of Service
+- Privacy Policy
+- Cookie Policy
+
+**Contact Info:**
+- Email: hello@kiwicar.co.nz
+- Location: Auckland, New Zealand
+
+**Copyright:**
+```
+© 2026 KiwiCar. All rights reserved.
 ```
 
 ---
 
-## 设计规范
+## 4. Visual Assets Required
 
-### 色彩方案
+### 4.1 Logo
 
-| 用途 | 颜色 | Hex值 |
-|------|------|-------|
-| 主色 (Primary) | 新西兰绿 | #00A651 |
-| 次色 (Secondary) | 深蓝 | #1E3A5F |
-| 强调色 (Accent) | 橙色 | #FF6B35 |
-| 背景色 | 浅灰 | #F5F7FA |
-| 文字主色 | 深灰 | #333333 |
-| 文字次色 | 中灰 | #666666 |
+| Asset | Specification |
+|-------|---------------|
+| `logo-dark.svg` | KiwiCar logo for light backgrounds |
+| `logo-light.svg` | KiwiCar logo for dark backgrounds |
+| `favicon.ico` | 32x32 favicon |
+| `apple-icon.png` | 180x180 Apple touch icon |
+| `web-app-manifest-192x192.png` | PWA icon |
+| `web-app-manifest-512x512.png` | PWA icon large |
 
-### 字体
+### 4.2 Hero Background
 
-- **标题:** Poppins (Bold, Semi-Bold)
-- **正文:** Inter (Regular, Medium)
-- **备选:** -apple-system, BlinkMacSystemFont, Segoe UI
+Consider replacing generic gradient with:
+- Car-themed subtle pattern
+- Abstract road/journey imagery
+- Keep clean and professional
 
-### 响应式断点
+### 4.3 Trust Logos
 
-- Mobile: < 768px
-- Tablet: 768px - 1024px
-- Desktop: > 1024px
-
-### 图标风格
-
-- 使用线性图标风格 (Line icons)
-- 推荐图标库: Lucide Icons, Heroicons
-- 图标颜色与品牌主色保持一致
+- NZTA / Waka Kotahi logo (with permission)
+- Any relevant automotive partner logos
 
 ---
 
-## SEO元数据
+## 5. SEO & Metadata
+
+### 5.1 Page Title
+```
+KiwiCar | Buy & Sell Used Cars in New Zealand | AI-Powered Car Marketplace
+```
+
+### 5.2 Meta Description
+```
+New Zealand's smartest used car marketplace. Check vehicle history with official NZTA data, get AI pricing, and list your car in 30 seconds. Free for buyers and sellers.
+```
+
+### 5.3 Keywords
+- used cars nz
+- buy car new zealand
+- sell my car nz
+- car marketplace nz
+- vehicle history check nz
+- wof check online
+- nzta vehicle lookup
+
+### 5.4 Open Graph Tags
 
 ```html
-<title>KiwiCar - 新西兰二手车买卖平台 | AI智能定价</title>
-<meta name="description" content="KiwiCar是新西兰领先的二手车交易平台。AI智能定价、NZTA官方车辆历史查询、30秒极速发布。安全、透明、高效的买卖体验。">
-<meta name="keywords" content="新西兰二手车, NZ used cars, buy car NZ, sell car NZ, car marketplace, NZTA check">
+<meta property="og:title" content="KiwiCar - Buy & Sell Cars with Confidence" />
+<meta property="og:description" content="New Zealand's AI-powered car marketplace with official NZTA data." />
+<meta property="og:image" content="/og-image.png" />
+<meta property="og:url" content="https://kiwicar.co.nz" />
 ```
 
 ---
 
-## 页面加载优化建议
+## 6. Links & CTAs Mapping
 
-1. Hero区域背景图使用WebP格式，提供多尺寸响应式图片
-2. 首屏内容优先加载，其他模块懒加载
-3. 使用骨架屏提升感知性能
-4. 关键CSS内联，非关键CSS异步加载
+| CTA | Destination |
+|-----|-------------|
+| "Find Your Next Car" | `https://app.kiwicar.co.nz/buy` |
+| "Sell Your Car" | `https://app.kiwicar.co.nz/sell` |
+| "List Your Car" | `https://app.kiwicar.co.nz/sell` |
+| "Sign In" | `https://app.kiwicar.co.nz/login` |
+| "Sign Up" | `https://app.kiwicar.co.nz/register` |
+| "Plate Lookup" | `https://app.kiwicar.co.nz/lookup` |
+| "Start Browsing" | `https://app.kiwicar.co.nz/buy` |
+
+---
+
+## 7. Implementation Checklist
+
+- [ ] Update `data/navLinks.js` with KiwiCar navigation
+- [ ] Update `data/featuresData.js` with KiwiCar features
+- [ ] Update `data/faqsData.js` with KiwiCar FAQs
+- [ ] Update or remove `data/pricingData.js`
+- [ ] Update `data/companiesLogo.js` with relevant logos
+- [ ] Modify `app/(publicPages)/page.jsx` hero section copy
+- [ ] Modify `components/Footer.jsx` footer content
+- [ ] Replace logo assets in `public/assets/`
+- [ ] Update `app/layout.js` with SEO metadata
+- [ ] Update `app/manifest.json` with app info
+- [ ] Test all CTA links point to correct frontend app URLs
+- [ ] Verify responsive design on mobile
+- [ ] Test dark/light mode with new content
+
+---
+
+## 8. Version History
+
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 1.0 | Jan 2026 | Initial copy specification | - |
