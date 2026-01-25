@@ -1,45 +1,76 @@
 "use client"
-import { useThemeContext } from "@/context/ThemeContext";
-import { navLinks } from "@/data/navLinks";
-import Image from "next/image";
 import Link from "next/link";
 
 export default function Footer() {
-    const { theme } = useThemeContext();
+    const marketplaceLinks = [
+        { name: "Buy a Car", href: "#" },
+        { name: "Sell Your Car", href: "#" },
+        { name: "Plate Lookup", href: "#" },
+        { name: "Price Alerts", href: "#" },
+    ];
+
+    const companyLinks = [
+        { name: "About Us", href: "#" },
+        { name: "How It Works", href: "#" },
+        { name: "Contact", href: "#" },
+    ];
+
+    const legalLinks = [
+        { name: "Terms of Service", href: "#" },
+        { name: "Privacy Policy", href: "#" },
+        { name: "Cookie Policy", href: "#" },
+    ];
+
     return (
         <footer className="relative px-6 md:px-16 lg:px-24 xl:px-32 mt-40 w-full dark:text-slate-50">
-            <Image className="absolute max-w-4xl w-full h-auto -mt-30 max-md:px-4 right-0 md:right-16 lg:right-24 xl:right-32 top-0 pointer-events-none" src={theme === "dark" ? "/assets/landing-text-dark.svg" : "/assets/landing-text-light.svg"} alt="landing" width={930} height={340} priority fetchPriority="high" />
             <div className="flex flex-col md:flex-row justify-between w-full gap-10 border-b border-gray-200 dark:border-slate-700 pb-6">
-                <div className="md:max-w-114">
-                    <a href="#">
-                        <Image className="h-9 md:h-9.5 w-auto shrink-0" src={theme === "dark" ? "/assets/logo-light.svg" : "/assets/logo-dark.svg"} alt="Logo" width={140} height={40} priority fetchPriority="high" />
+                <div className="md:max-w-80">
+                    <a href="/" className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                        KiwiCar
                     </a>
-                    <p className="mt-6">
-                        Launch your SaaS product in record time with our all-in-one platform designed for speed, flexibility and growth. Whether you`&apos;re a solo founder or a fast-moving team, we provide everything you need.
+                    <p className="mt-6 text-slate-600 dark:text-slate-300">
+                        New Zealand&apos;s smartest car marketplace. Buy and sell with confidence using AI-powered tools and official NZTA data.
                     </p>
+                    <div className="mt-4 space-y-1 text-sm text-slate-500 dark:text-slate-400">
+                        <p>hello@kiwicar.co.nz</p>
+                        <p>Auckland, New Zealand</p>
+                    </div>
                 </div>
-                <div className="flex-1 flex items-start md:justify-end gap-20">
+                <div className="flex-1 flex flex-wrap items-start md:justify-end gap-12 md:gap-16">
                     <div>
-                        <h2 className="font-semibold mb-5">Company</h2>
+                        <h2 className="font-semibold mb-5">Marketplace</h2>
                         <ul className="space-y-2">
-                            {navLinks.map((link, index) => (
+                            {marketplaceLinks.map((link, index) => (
                                 <li key={index}>
-                                    <Link href={link.href} className="hover:text-purple-600 transition">{link.name}</Link>
+                                    <Link href={link.href} className="text-slate-600 dark:text-slate-300 hover:text-purple-600 transition">{link.name}</Link>
                                 </li>
                             ))}
                         </ul>
                     </div>
                     <div>
-                        <h2 className="font-semibold mb-5">Get in touch</h2>
-                        <div className="space-y-2">
-                            <p>+1-212-456-7890</p>
-                            <p>contact@example.com</p>
-                        </div>
+                        <h2 className="font-semibold mb-5">Company</h2>
+                        <ul className="space-y-2">
+                            {companyLinks.map((link, index) => (
+                                <li key={index}>
+                                    <Link href={link.href} className="text-slate-600 dark:text-slate-300 hover:text-purple-600 transition">{link.name}</Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div>
+                        <h2 className="font-semibold mb-5">Legal</h2>
+                        <ul className="space-y-2">
+                            {legalLinks.map((link, index) => (
+                                <li key={index}>
+                                    <Link href={link.href} className="text-slate-600 dark:text-slate-300 hover:text-purple-600 transition">{link.name}</Link>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
             </div>
-            <p className="pt-4 text-center pb-5">
-                Copyright 2024 © <a href="https://prebuiltui.com?utm_source=landing" target="_blank">PrebuiltUI</a> • Distributed by <a href="https://themewagon.com" target="_blank">ThemeWagon</a> • All Right Reserved.
+            <p className="pt-4 text-center pb-5 text-slate-500 dark:text-slate-400">
+                © 2026 KiwiCar. All rights reserved.
             </p>
         </footer>
     );

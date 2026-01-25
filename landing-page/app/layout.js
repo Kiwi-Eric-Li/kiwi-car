@@ -10,14 +10,22 @@ const poppins = Poppins({
 });
 
 export const metadata = {
-    title: "Landing - PrebuiltUI",
-    description: "Landing is a SaaS template for developers to build SaaS applications.",
+    title: "KiwiCar | Buy & Sell Used Cars in New Zealand | AI-Powered Car Marketplace",
+    description: "New Zealand's smartest used car marketplace. Check vehicle history with official NZTA data, get AI pricing, and list your car in 30 seconds. Free for buyers and sellers.",
+    keywords: "used cars nz, buy car new zealand, sell my car nz, car marketplace nz, vehicle history check nz, wof check online, nzta vehicle lookup",
+    openGraph: {
+        title: "KiwiCar - Buy & Sell Cars with Confidence",
+        description: "New Zealand's AI-powered car marketplace with official NZTA data.",
+        url: "https://kiwicar.co.nz",
+        siteName: "KiwiCar",
+        type: "website",
+    },
 };
 
 export default function RootLayout({ children }) {
     return (
         <html lang="en">
-            <body>
+            <body className={poppins.variable}>
                 <ThemeContextProvider>
                     <LenisScroll />
                     {children}

@@ -4,15 +4,15 @@ export const navLinks = [
         href: "/",
     },
     {
-        name: "Features",
-        href: "#features",
+        name: "Buy a Car",
+        href: "#buy",
     },
     {
-        name: "Pricing",
-        href: "#pricing",
+        name: "Sell Your Car",
+        href: "#sell",
     },
     {
-        name: "Docs",
-        href: "#docs",
-    }
+        name: "Plate Lookup",
+        href: "#lookup",
+    },
 ];

@@ -1,10 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C \"E:\\\\kiwi-car\" status)",
-      "Bash(git -C \"E:\\\\kiwi-car\" diff --stat)",
-      "Bash(git -C \"E:\\\\kiwi-car\" log --oneline -5)",
-      "Bash(git -C:*)"
+      "Bash(npm run lint)"
     ]
   }
 }

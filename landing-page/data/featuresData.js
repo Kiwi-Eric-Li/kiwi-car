@@ -1,24 +1,24 @@
-import { RocketIcon, ShapesIcon, ThumbsUpIcon, ZapIcon } from "lucide-react";
+import { BellIcon, ShieldCheckIcon, SparklesIcon, ZapIcon } from "lucide-react";
 
 export const featuresData = [
     {
+        icon: ShieldCheckIcon,
+        title: "Official NZTA Data",
+        description: "Check WOF, Rego, odometer history, and more from official NZ Transport Agency records.",
+    },
+    {
+        icon: SparklesIcon,
+        title: "AI Smart Pricing",
+        description: "Get accurate market valuations based on real NZ sales data. Know the fair price instantly.",
+    },
+    {
         icon: ZapIcon,
-        title: "Lightning-fast setup",
-        description: "Launch production-ready pages in minutes with prebuilt components.",
+        title: "30-Second Listing",
+        description: "Enter your plate number, upload photos, and let AI write your description. Done in seconds.",
     },
     {
-        icon: ThumbsUpIcon,
-        title: "Pixel perfect",
-        description: "Modern Figma-driven UI that translates to exact code.",
-    },
-    {
-        icon: ShapesIcon,
-        title: "Highly customizable",
-        description: "Tailwind utility-first classes make customization trivial.",
-    },
-    {
-        icon: RocketIcon,
-        title: "Accessible & responsive",
-        description: "Built with accessibility and mobile-first design in mind.",
+        icon: BellIcon,
+        title: "Price Drop Alerts",
+        description: "Save your searches and get notified when prices drop on cars you're watching.",
     },
 ];
