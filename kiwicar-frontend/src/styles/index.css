@@ -45,6 +45,11 @@
   input[type="number"] {
     -moz-appearance: textfield;
   }
+
+  /* Fix placeholder color when parent sets -webkit-text-fill-color */
+  input::placeholder {
+    -webkit-text-fill-color: #d1d5db;
+  }
 }
 
 @layer components {
