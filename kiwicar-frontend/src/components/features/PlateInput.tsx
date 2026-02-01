@@ -62,6 +62,7 @@ export default function PlateInput({
               onChange={handleChange}
               placeholder="ABC123"
               maxLength={7}
+              style={{ color: '#111827', WebkitTextFillColor: '#111827' }}
               className={cn(
                 'w-full text-center text-3xl md:text-4xl font-bold tracking-[0.25em] uppercase',
                 'bg-transparent border-none outline-none',

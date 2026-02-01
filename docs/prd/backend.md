@@ -1,7 +1,8 @@
 # KiwiCar Backend PRD
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Created:** January 2026
+**Updated:** February 2026
 **Status:** Draft
 **Application Type:** Node.js REST API Server
 
@@ -11,20 +12,20 @@
 
 ### 1.1 Purpose
 
-This document defines the requirements for building the KiwiCar backend API server - a Node.js/Express application with TypeScript that powers the KiwiCar platform's core functionality including authentication, listings management, vehicle data, AI features, and messaging.
+This document defines the requirements for building the KiwiCar backend API server - a Node.js/Express application with TypeScript that powers the KiwiCar platform's core functionality including listings management, vehicle data, AI features, and messaging. Authentication and data storage are handled by Supabase.
 
 ### 1.2 Scope
 
 The backend server handles:
-- User authentication and authorization
 - Car listing CRUD operations
 - Vehicle information lookup (NZTA integration)
 - AI-powered features (description generation, pricing)
 - Favorites and price alert management
 - Messaging between buyers and sellers
-- Image upload and storage
-- Email notifications
+- Image upload via Supabase Storage
 - Rate limiting and security
+
+**Authentication** is handled entirely by Supabase Auth on the client side. The backend verifies Supabase JWTs on protected routes but does not implement its own auth flows.
 
 ### 1.3 Tech Stack
 
@@ -33,33 +34,27 @@ The backend server handles:
 | Node.js | 20 LTS | Runtime environment |
 | Express.js | 4.x | Web framework |
 | TypeScript | 5.0+ | Type safety |
-| Prisma | 5+ | ORM and database toolkit |
-| MySQL | 8.0+ | Primary database |
-| Redis | 7+ | Caching, sessions, rate limiting |
-| JWT | - | Authentication tokens |
-| bcrypt | - | Password hashing |
+| Supabase JS | 2.x | Database client, auth verification, storage |
 | Zod | 3+ | Request validation |
-| Multer | - | File upload handling |
-| Sharp | - | Image processing |
 | Winston | - | Logging |
 | node-cron | - | Scheduled tasks |
+
+**Supabase provides:**
+- PostgreSQL database (data storage)
+- Auth (registration, login, password reset, email verification, OAuth)
+- Storage (image uploads with CDN)
+- Row Level Security (RLS) as an additional safety net
 
 ### 1.4 Project Structure
 
 ```
 kiwicar-backend/
-├── prisma/
-│   ├── schema.prisma
-│   ├── migrations/
-│   └── seed.ts
 ├── src/
 │   ├── config/
-│   │   ├── database.ts
-│   │   ├── redis.ts
+│   │   ├── supabase.ts
 │   │   ├── env.ts
 │   │   └── constants.ts
 │   ├── controllers/
-│   │   ├── auth.controller.ts
 │   │   ├── listings.controller.ts
 │   │   ├── vehicles.controller.ts
 │   │   ├── users.controller.ts
@@ -68,22 +63,17 @@ kiwicar-backend/
 │   │   ├── uploads.controller.ts
 │   │   └── ai.controller.ts
 │   ├── services/
-│   │   ├── auth.service.ts
 │   │   ├── listings.service.ts
 │   │   ├── nzta.service.ts
 │   │   ├── ai.service.ts
-│   │   ├── email.service.ts
-│   │   ├── storage.service.ts
-│   │   └── cache.service.ts
+│   │   └── storage.service.ts
 │   ├── middleware/
 │   │   ├── auth.middleware.ts
 │   │   ├── validate.middleware.ts
 │   │   ├── rateLimit.middleware.ts
-│   │   ├── error.middleware.ts
-│   │   └── upload.middleware.ts
+│   │   └── error.middleware.ts
 │   ├── routes/
 │   │   ├── index.ts
-│   │   ├── auth.routes.ts
 │   │   ├── listings.routes.ts
 │   │   ├── vehicles.routes.ts
 │   │   ├── users.routes.ts
@@ -92,7 +82,6 @@ kiwicar-backend/
 │   │   ├── uploads.routes.ts
 │   │   └── ai.routes.ts
 │   ├── schemas/
-│   │   ├── auth.schema.ts
 │   │   ├── listings.schema.ts
 │   │   └── ...
 │   ├── types/
@@ -101,17 +90,10 @@ kiwicar-backend/
 │   ├── utils/
 │   │   ├── logger.ts
 │   │   ├── errors.ts
-│   │   ├── helpers.ts
 │   │   └── pagination.ts
-│   ├── jobs/
-│   │   ├── priceAlerts.job.ts
-│   │   └── cleanup.job.ts
 │   ├── app.ts
 │   └── server.ts
-├── tests/
 ├── .env.example
-├── docker-compose.yml
-├── Dockerfile
 ├── package.json
 └── tsconfig.json
 ```
@@ -120,285 +102,156 @@ kiwicar-backend/
 
 ## 2. Database Schema
 
-### 2.1 Prisma Schema
+### 2.1 Supabase Tables
 
-```prisma
-// prisma/schema.prisma
+Authentication is managed by Supabase Auth (`auth.users`). Application tables reference `auth.users.id` as foreign keys. All tables live in the `public` schema.
 
-generator client {
-  provider = "prisma-client-js"
-}
+```sql
+-- User profiles (extends Supabase auth.users)
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  phone TEXT UNIQUE,
+  nickname TEXT,
+  avatar_url TEXT,
+  region TEXT,
+  show_phone BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
-datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
+-- Auto-create profile on signup via Supabase trigger
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email)
+  VALUES (NEW.id, NEW.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  phone         String?   @unique
-  passwordHash  String
-  nickname      String?
-  avatarUrl     String?
-  region        String?
-  showPhone     Boolean   @default(false)
-  isVerified    Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
-  listings      Listing[]
-  favorites     Favorite[]
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
-  lookupQuota   LookupQuota?
+-- Listings
+CREATE TABLE listings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id),
+  plate_number TEXT NOT NULL,
+  make TEXT NOT NULL,
+  model TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  mileage INTEGER NOT NULL,
+  price NUMERIC(10,2) NOT NULL,
+  description TEXT NOT NULL,
+  ai_description TEXT,
+  ai_price_min NUMERIC(10,2),
+  ai_price_max NUMERIC(10,2),
+  ai_price_recommended NUMERIC(10,2),
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SOLD','REMOVED','DRAFT')),
+  region TEXT NOT NULL,
+  fuel_type TEXT NOT NULL CHECK (fuel_type IN ('PETROL','DIESEL','HYBRID','ELECTRIC','OTHER')),
+  transmission TEXT NOT NULL CHECK (transmission IN ('AUTOMATIC','MANUAL')),
+  body_type TEXT NOT NULL,
+  color TEXT NOT NULL,
+  vin TEXT,
+  views INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
-  @@map("users")
-}
+CREATE INDEX idx_listings_status_created ON listings(status, created_at);
+CREATE INDEX idx_listings_make_model ON listings(make, model);
+CREATE INDEX idx_listings_region ON listings(region);
+CREATE INDEX idx_listings_price ON listings(price);
 
-model Listing {
-  id              String    @id @default(uuid())
-  userId          String
-  plateNumber     String
-  make            String
-  model           String
-  year            Int
-  mileage         Int
-  price           Decimal   @db.Decimal(10, 2)
-  description     String    @db.Text
-  aiDescription   String?   @db.Text
-  aiPriceMin      Decimal?  @db.Decimal(10, 2)
-  aiPriceMax      Decimal?  @db.Decimal(10, 2)
-  aiPriceRecommended Decimal? @db.Decimal(10, 2)
-  status          ListingStatus @default(ACTIVE)
-  region          String
-  fuelType        FuelType
-  transmission    Transmission
-  bodyType        String
-  color           String
-  vin             String?
-  views           Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+-- Listing images
+CREATE TABLE listing_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  "order" INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-  user            User      @relation(fields: [userId], references: [id])
-  images          ListingImage[]
-  favorites       Favorite[]
-  priceHistory    PriceHistory[]
-  messages        Message[]
+CREATE INDEX idx_listing_images_listing ON listing_images(listing_id);
 
-  @@index([status, createdAt])
-  @@index([make, model])
-  @@index([region])
-  @@index([price])
-  @@map("listings")
-}
+-- Favorites
+CREATE TABLE favorites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  price_alert BOOLEAN DEFAULT false,
+  target_price NUMERIC(10,2),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, listing_id)
+);
 
-model ListingImage {
-  id          String   @id @default(uuid())
-  listingId   String
-  imageUrl    String
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
+-- Price history
+CREATE TABLE price_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  price NUMERIC(10,2) NOT NULL,
+  changed_at TIMESTAMPTZ DEFAULT now()
+);
 
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+CREATE INDEX idx_price_history_listing ON price_history(listing_id);
 
-  @@index([listingId])
-  @@map("listing_images")
-}
+-- Messages
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id UUID NOT NULL REFERENCES profiles(id),
+  receiver_id UUID NOT NULL REFERENCES profiles(id),
+  listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-model Favorite {
-  id          String   @id @default(uuid())
-  userId      String
-  listingId   String
-  priceAlert  Boolean  @default(false)
-  targetPrice Decimal? @db.Decimal(10, 2)
-  createdAt   DateTime @default(now())
+CREATE INDEX idx_messages_participants ON messages(sender_id, receiver_id, listing_id);
+CREATE INDEX idx_messages_unread ON messages(receiver_id, is_read);
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+-- Vehicle info cache (from NZTA lookups)
+CREATE TABLE vehicle_info (
+  plate_number TEXT PRIMARY KEY,
+  make TEXT NOT NULL,
+  model TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  body_style TEXT,
+  color TEXT,
+  engine_cc INTEGER,
+  fuel_type TEXT,
+  wof_expiry DATE,
+  wof_status TEXT,
+  rego_expiry DATE,
+  rego_status TEXT,
+  first_registered DATE,
+  odometer_readings JSONB,
+  fetched_at TIMESTAMPTZ DEFAULT now()
+);
 
-  @@unique([userId, listingId])
-  @@map("favorites")
-}
-
-model PriceHistory {
-  id          String   @id @default(uuid())
-  listingId   String
-  price       Decimal  @db.Decimal(10, 2)
-  changedAt   DateTime @default(now())
-
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-
-  @@index([listingId])
-  @@map("price_history")
-}
-
-model Message {
-  id           String   @id @default(uuid())
-  senderId     String
-  receiverId   String
-  listingId    String
-  content      String   @db.Text
-  isRead       Boolean  @default(false)
-  createdAt    DateTime @default(now())
-
-  sender       User     @relation("SentMessages", fields: [senderId], references: [id])
-  receiver     User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  listing      Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-
-  @@index([senderId, receiverId, listingId])
-  @@index([receiverId, isRead])
-  @@map("messages")
-}
-
-model VehicleInfo {
-  plateNumber      String   @id
-  make             String
-  model            String
-  year             Int
-  bodyStyle        String?
-  color            String?
-  engineCc         Int?
-  fuelType         String?
-  wofExpiry        DateTime?
-  wofStatus        String?
-  regoExpiry       DateTime?
-  regoStatus       String?
-  firstRegistered  DateTime?
-  odometerReadings Json?
-  fetchedAt        DateTime @default(now())
-
-  @@map("vehicle_info")
-}
-
-model LookupQuota {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  count       Int      @default(0)
-  resetAt     DateTime
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("lookup_quotas")
-}
-
-model PasswordReset {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([token])
-  @@map("password_resets")
-}
-
-model EmailVerification {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  verified  Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([token])
-  @@map("email_verifications")
-}
-
-enum ListingStatus {
-  ACTIVE
-  SOLD
-  REMOVED
-  DRAFT
-}
-
-enum FuelType {
-  PETROL
-  DIESEL
-  HYBRID
-  ELECTRIC
-  OTHER
-}
-
-enum Transmission {
-  AUTOMATIC
-  MANUAL
-}
+-- Lookup quotas
+CREATE TABLE lookup_quotas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE REFERENCES profiles(id) ON DELETE CASCADE,
+  count INTEGER DEFAULT 0,
+  reset_at TIMESTAMPTZ NOT NULL
+);
 ```
 
 ---
 
 ## 3. API Endpoints
 
-### 3.1 Authentication (`/api/auth`)
+### 3.1 Users (`/api/users`)
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/register` | Create new account | No |
-| POST | `/login` | Login with credentials | No |
-| POST | `/logout` | Invalidate session | Yes |
-| POST | `/refresh` | Refresh access token | Yes |
-| POST | `/forgot-password` | Request password reset | No |
-| POST | `/reset-password` | Reset password with token | No |
-| GET | `/verify-email/:token` | Verify email address | No |
-| POST | `/resend-verification` | Resend verification email | Yes |
-
-**POST /register**
-
-Request:
-```json
-{
-  "email": "user@example.com",
-  "phone": "+64211234567",
-  "password": "SecurePass123"
-}
-```
-
-Response (201):
-```json
-{
-  "message": "Registration successful. Please verify your email.",
-  "userId": "uuid"
-}
-```
-
-**POST /login**
-
-Request:
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePass123"
-}
-```
-
-Response (200):
-```json
-{
-  "accessToken": "jwt...",
-  "refreshToken": "jwt...",
-  "expiresIn": 3600,
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "nickname": "John",
-    "avatarUrl": null,
-    "isVerified": true
-  }
-}
-```
-
----
-
-### 3.2 Users (`/api/users`)
+Authentication (register, login, password reset, OAuth) is handled entirely by Supabase Auth on the frontend. The backend only manages user profile data.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | GET | `/me` | Get current user profile | Yes |
 | PUT | `/me` | Update profile | Yes |
-| POST | `/me/avatar` | Upload avatar | Yes |
 | DELETE | `/me` | Delete account | Yes |
 | GET | `/me/lookup-quota` | Get remaining lookups | Yes |
 
@@ -414,7 +267,6 @@ Response (200):
   "avatarUrl": "https://...",
   "region": "Auckland",
   "showPhone": false,
-  "isVerified": true,
   "createdAt": "2026-01-01T00:00:00Z"
 }
 ```
@@ -432,7 +284,7 @@ Request:
 
 ---
 
-### 3.3 Listings (`/api/listings`)
+### 3.2 Listings (`/api/listings`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -565,7 +417,7 @@ Response (201):
 
 ---
 
-### 3.4 Vehicles (`/api/vehicles`)
+### 3.3 Vehicles (`/api/vehicles`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -605,7 +457,7 @@ Rate Limits:
 
 ---
 
-### 3.5 Favorites (`/api/favorites`)
+### 3.4 Favorites (`/api/favorites`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -653,7 +505,7 @@ Response (200):
 
 ---
 
-### 3.6 Messages (`/api/messages`)
+### 3.5 Messages (`/api/messages`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -705,7 +557,7 @@ Request:
 
 ---
 
-### 3.7 AI (`/api/ai`)
+### 3.6 AI (`/api/ai`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -726,8 +578,7 @@ Request:
   "color": "Silver",
   "bodyType": "Sedan",
   "wofExpiry": "2026-06-15",
-  "regoExpiry": "2026-08-20",
-  "imageUrls": ["https://...", "https://..."]
+  "regoExpiry": "2026-08-20"
 }
 ```
 
@@ -765,7 +616,7 @@ Response (200):
 
 ---
 
-### 3.8 Uploads (`/api/uploads`)
+### 3.7 Uploads (`/api/uploads`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -782,8 +633,8 @@ Response (200):
   "images": [
     {
       "id": "uuid",
-      "url": "https://storage.kiwicar.co.nz/images/abc123.webp",
-      "thumbnailUrl": "https://storage.kiwicar.co.nz/images/abc123_thumb.webp"
+      "url": "https://<project>.supabase.co/storage/v1/object/public/listings/abc123.webp",
+      "thumbnailUrl": "https://<project>.supabase.co/storage/v1/object/public/listings/abc123_thumb.webp"
     }
   ]
 }
@@ -791,7 +642,7 @@ Response (200):
 
 ---
 
-### 3.9 Filter Options (`/api/filters`)
+### 3.8 Filter Options (`/api/filters`)
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -832,46 +683,87 @@ Response (200):
 
 ## 4. Third-Party Integrations
 
-### 4.1 NZTA Vehicle API
+### 4.1 Supabase
+
+**Purpose:** Database, authentication, and file storage.
+
+**Setup:**
+```typescript
+// config/supabase.ts
+import { createClient } from '@supabase/supabase-js';
+
+// Admin client for server-side operations (bypasses RLS)
+export const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+
+// Create a per-request client that respects the user's auth context
+export function createSupabaseClient(accessToken: string) {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } },
+  );
+}
+```
+
+**Auth Middleware:**
+```typescript
+// middleware/auth.middleware.ts
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Missing token' });
+
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
+
+  req.user = user;
+  next();
+}
+```
+
+**Storage:**
+- Bucket `listings` for listing images (public read)
+- Bucket `avatars` for user avatars (public read)
+- Images uploaded via Supabase Storage API
+
+---
+
+### 4.2 NZTA Vehicle API
 
 **Purpose:** Fetch official vehicle information by plate number.
 
 **Integration:**
 ```typescript
 // services/nzta.service.ts
-interface NZTAVehicleResponse {
-  make: string;
-  model: string;
-  year: number;
-  // ... etc
-}
-
 async function lookupVehicle(plateNumber: string): Promise<NZTAVehicleResponse> {
-  // 1. Check cache (Redis) - 24 hour TTL
-  const cached = await cache.get(`vehicle:${plateNumber}`);
-  if (cached) return cached;
+  // 1. Check database cache (vehicle_info table) - 24 hour TTL
+  const { data: cached } = await supabaseAdmin
+    .from('vehicle_info')
+    .select('*')
+    .eq('plate_number', plateNumber)
+    .single();
+
+  if (cached && isWithin24Hours(cached.fetched_at)) {
+    return cached;
+  }
 
   // 2. Call NZTA API
   const response = await nztaClient.get(`/vehicles/${plateNumber}`);
 
-  // 3. Cache result
-  await cache.set(`vehicle:${plateNumber}`, response.data, 86400);
-
-  // 4. Store in database for historical purposes
-  await prisma.vehicleInfo.upsert({...});
+  // 3. Upsert into database for caching
+  await supabaseAdmin
+    .from('vehicle_info')
+    .upsert({ plate_number: plateNumber, ...response.data, fetched_at: new Date() });
 
   return response.data;
 }
 ```
 
-**Caching Strategy:**
-- Cache vehicle info in Redis for 24 hours
-- Store in database for analytics and fallback
-- Rate limit API calls to stay within NZTA limits
-
 ---
 
-### 4.2 OpenAI API (GPT-4)
+### 4.3 OpenAI API (GPT-4)
 
 **Purpose:** Generate listing descriptions and analyze pricing.
 
@@ -909,181 +801,42 @@ async function generateDescription(vehicleData: VehicleData): Promise<string> {
 
 ---
 
-### 4.3 Email Service (SendGrid)
-
-**Purpose:** Send transactional emails.
-
-**Email Types:**
-
-| Template | Trigger |
-|----------|---------|
-| `welcome` | User registration |
-| `verify-email` | Email verification |
-| `reset-password` | Password reset request |
-| `price-alert` | Favorite listing price drops |
-| `new-message` | New message received |
-| `listing-sold` | User's favorite sold |
-
-**Implementation:**
-```typescript
-// services/email.service.ts
-import sgMail from '@sendgrid/mail';
-
-interface EmailOptions {
-  to: string;
-  template: string;
-  data: Record<string, any>;
-}
-
-async function sendEmail(options: EmailOptions): Promise<void> {
-  const templates = {
-    'welcome': 'd-abc123...',
-    'verify-email': 'd-def456...',
-    'reset-password': 'd-ghi789...',
-    'price-alert': 'd-jkl012...',
-    'new-message': 'd-mno345...',
-  };
-
-  await sgMail.send({
-    to: options.to,
-    from: 'noreply@kiwicar.co.nz',
-    templateId: templates[options.template],
-    dynamicTemplateData: options.data,
-  });
-}
-```
-
----
-
-### 4.4 Cloud Storage (S3/R2)
-
-**Purpose:** Store user-uploaded images.
-
-**Implementation:**
-```typescript
-// services/storage.service.ts
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import sharp from 'sharp';
-
-async function uploadImage(file: Express.Multer.File): Promise<UploadResult> {
-  // 1. Validate file type
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
-    throw new BadRequestError('Invalid file type');
-  }
-
-  // 2. Process image (resize, convert to WebP)
-  const processed = await sharp(file.buffer)
-    .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 80 })
-    .toBuffer();
-
-  // 3. Generate thumbnail
-  const thumbnail = await sharp(file.buffer)
-    .resize(400, 300, { fit: 'cover' })
-    .webp({ quality: 70 })
-    .toBuffer();
-
-  // 4. Upload to S3
-  const key = `images/${uuid()}.webp`;
-  const thumbKey = `images/${uuid()}_thumb.webp`;
-
-  await s3.send(new PutObjectCommand({
-    Bucket: process.env.S3_BUCKET,
-    Key: key,
-    Body: processed,
-    ContentType: 'image/webp',
-  }));
-
-  await s3.send(new PutObjectCommand({
-    Bucket: process.env.S3_BUCKET,
-    Key: thumbKey,
-    Body: thumbnail,
-    ContentType: 'image/webp',
-  }));
-
-  return {
-    id: uuid(),
-    url: `${process.env.CDN_URL}/${key}`,
-    thumbnailUrl: `${process.env.CDN_URL}/${thumbKey}`,
-  };
-}
-```
-
----
-
 ## 5. Authentication & Security
 
-### 5.1 JWT Strategy
+### 5.1 Supabase Auth
 
-**Token Structure:**
-```typescript
-// Access Token (short-lived: 1 hour)
-interface AccessTokenPayload {
-  sub: string;       // User ID
-  email: string;
-  iat: number;
-  exp: number;
-}
+Authentication is fully managed by Supabase. The frontend uses the Supabase client SDK for:
+- Email/password registration and login
+- Password reset via email
+- Email verification
+- OAuth providers (Google, etc.) — can be enabled in Supabase dashboard
 
-// Refresh Token (long-lived: 30 days)
-interface RefreshTokenPayload {
-  sub: string;
-  jti: string;       // Unique token ID for revocation
-  iat: number;
-  exp: number;
-}
-```
+The backend only needs to **verify the JWT** from incoming requests using `supabase.auth.getUser(token)`. No password hashing, token generation, or session management is needed on the backend.
 
-**Token Flow:**
-1. Login → Return access + refresh tokens
-2. Access token expires → Client uses refresh token to get new access token
-3. Refresh token stored in httpOnly cookie
-4. Logout → Blacklist refresh token in Redis
+### 5.2 Rate Limiting
 
-### 5.2 Password Hashing
-
-```typescript
-import bcrypt from 'bcrypt';
-
-const SALT_ROUNDS = 12;
-
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS);
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
-}
-```
-
-### 5.3 Rate Limiting
+Use `express-rate-limit` with the default in-memory store (sufficient for a single-server MVP).
 
 **Limits:**
 | Endpoint | Limit |
 |----------|-------|
-| `/auth/login` | 5 requests / 15 min / IP |
-| `/auth/register` | 3 requests / hour / IP |
-| `/auth/forgot-password` | 3 requests / hour / email |
 | `/vehicles/:plate` (guest) | 3 requests / day / IP |
 | `/vehicles/:plate` (auth) | 10 requests / day / user |
 | `/ai/generate-description` | 20 requests / day / user |
-| General API | 100 requests / min / user |
+| General API | 100 requests / min / IP |
 
-**Implementation:**
 ```typescript
 // middleware/rateLimit.middleware.ts
 import rateLimit from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
 
-const loginLimiter = rateLimit({
-  store: new RedisStore({ client: redisClient }),
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: { error: 'Too many login attempts. Please try again later.' },
+export const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests. Please try again later.' },
 });
 ```
 
-### 5.4 Input Validation
+### 5.3 Input Validation
 
 Use Zod schemas for all request validation:
 
@@ -1111,18 +864,17 @@ export const createListingSchema = z.object({
 });
 ```
 
-### 5.5 Security Headers
+### 5.4 Security Headers
 
 ```typescript
-// middleware/security.middleware.ts
 import helmet from 'helmet';
 import cors from 'cors';
 
 app.use(helmet());
 app.use(cors({
   origin: [
-    'https://kiwicar.co.nz',
-    'https://app.kiwicar.co.nz',
+    process.env.FRONTEND_URL!,
+    process.env.LANDING_URL!,
   ],
   credentials: true,
 }));
@@ -1141,38 +893,25 @@ app.use(cors({
 // jobs/priceAlerts.job.ts
 async function checkPriceAlerts(): Promise<void> {
   // 1. Get listings with recent price changes (last hour)
-  const priceChanges = await prisma.priceHistory.findMany({
-    where: {
-      changedAt: { gte: new Date(Date.now() - 3600000) },
-    },
-    include: { listing: true },
-  });
+  const { data: priceChanges } = await supabaseAdmin
+    .from('price_history')
+    .select('*, listings(*)')
+    .gte('changed_at', new Date(Date.now() - 3600000).toISOString());
 
   // 2. For each price change, find users with alerts
-  for (const change of priceChanges) {
-    const alerts = await prisma.favorite.findMany({
-      where: {
-        listingId: change.listingId,
-        priceAlert: true,
-        OR: [
-          { targetPrice: null },
-          { targetPrice: { gte: change.price } },
-        ],
-      },
-      include: { user: true },
-    });
+  for (const change of priceChanges ?? []) {
+    const { data: alerts } = await supabaseAdmin
+      .from('favorites')
+      .select('*, profiles(*)')
+      .eq('listing_id', change.listing_id)
+      .eq('price_alert', true);
 
-    // 3. Send email notifications
-    for (const alert of alerts) {
-      await emailService.send({
-        to: alert.user.email,
-        template: 'price-alert',
-        data: {
-          listingTitle: `${change.listing.year} ${change.listing.make} ${change.listing.model}`,
-          oldPrice: change.listing.price,
-          newPrice: change.price,
-          listingUrl: `https://app.kiwicar.co.nz/buy/${change.listingId}`,
-        },
+    // 3. Log or send notifications (email integration deferred for MVP)
+    for (const alert of alerts ?? []) {
+      logger.info('Price alert triggered', {
+        userId: alert.user_id,
+        listingId: change.listing_id,
+        newPrice: change.price,
       });
     }
   }
@@ -1184,8 +923,6 @@ async function checkPriceAlerts(): Promise<void> {
 **Schedule:** Daily at 3am
 
 **Tasks:**
-- Delete expired password reset tokens
-- Delete expired email verification tokens
 - Clean up orphaned images (uploaded but not linked to listings)
 - Archive sold/removed listings older than 90 days
 
@@ -1216,12 +953,6 @@ export class BadRequestError extends AppError {
 export class UnauthorizedError extends AppError {
   constructor(message = 'Unauthorized') {
     super(401, message, 'UNAUTHORIZED');
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message = 'Forbidden') {
-    super(403, message, 'FORBIDDEN');
   }
 }
 
@@ -1283,7 +1014,7 @@ export function errorHandler(
 
 ---
 
-## 8. Logging & Monitoring
+## 8. Logging
 
 ### 8.1 Logging Strategy
 
@@ -1295,13 +1026,13 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.json(),
+    process.env.NODE_ENV === 'development'
+      ? winston.format.combine(winston.format.colorize(), winston.format.simple())
+      : winston.format.json(),
   ),
   defaultMeta: { service: 'kiwicar-api' },
   transports: [
     new winston.transports.Console(),
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' }),
   ],
 });
 ```
@@ -1311,28 +1042,6 @@ const logger = winston.createLogger({
 - `warn` - Warning conditions
 - `info` - General operational info (requests, responses)
 - `debug` - Detailed debugging info
-
-### 8.2 Request Logging
-
-```typescript
-// middleware/requestLogger.middleware.ts
-app.use((req, res, next) => {
-  const start = Date.now();
-
-  res.on('finish', () => {
-    logger.info({
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration: Date.now() - start,
-      userId: req.user?.id,
-      ip: req.ip,
-    });
-  });
-
-  next();
-});
-```
 
 ---
 
@@ -1344,19 +1053,11 @@ app.use((req, res, next) => {
 # Server
 NODE_ENV=development
 PORT=3000
-API_URL=http://localhost:3000
 
-# Database
-DATABASE_URL=mysql://user:password@localhost:3306/kiwicar
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# JWT
-JWT_ACCESS_SECRET=your-access-secret
-JWT_REFRESH_SECRET=your-refresh-secret
-JWT_ACCESS_EXPIRY=1h
-JWT_REFRESH_EXPIRY=30d
+# Supabase
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # NZTA API
 NZTA_API_URL=https://api.nzta.govt.nz
@@ -1365,210 +1066,95 @@ NZTA_API_KEY=your-api-key
 # OpenAI
 OPENAI_API_KEY=your-openai-key
 
-# SendGrid
-SENDGRID_API_KEY=your-sendgrid-key
-FROM_EMAIL=noreply@kiwicar.co.nz
-
-# AWS S3 / Cloudflare R2
-S3_BUCKET=kiwicar-images
-S3_REGION=ap-southeast-2
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-CDN_URL=https://cdn.kiwicar.co.nz
-
-# Frontend URLs
-FRONTEND_URL=https://app.kiwicar.co.nz
-LANDING_URL=https://kiwicar.co.nz
+# Frontend URLs (for CORS)
+FRONTEND_URL=http://localhost:5173
+LANDING_URL=http://localhost:3001
 ```
 
 ---
 
-## 10. Testing Strategy
+## 10. Development Setup
 
-### 10.1 Test Types
+### 10.1 Getting Started
 
-| Type | Tool | Coverage |
-|------|------|----------|
-| Unit Tests | Vitest | Services, utilities |
-| Integration Tests | Vitest + Supertest | API endpoints |
-| Database Tests | Vitest + Test containers | Prisma queries |
-
-### 10.2 Test Structure
-
-```
-tests/
-├── unit/
-│   ├── services/
-│   └── utils/
-├── integration/
-│   ├── auth.test.ts
-│   ├── listings.test.ts
-│   └── vehicles.test.ts
-├── fixtures/
-│   └── testData.ts
-└── setup.ts
+```bash
+cd kiwicar-backend
+npm install
+cp .env.example .env    # Fill in your Supabase and API keys
+npm run dev             # Start dev server with ts-node + nodemon
 ```
 
-### 10.3 Critical Test Cases
+### 10.2 Scripts
 
-**Authentication:**
-- Register with valid/invalid data
-- Login with correct/incorrect credentials
-- Token refresh flow
-- Password reset flow
-
-**Listings:**
-- Create listing with valid data
-- Validation errors for invalid data
-- Filter and pagination
-- Owner-only update/delete
-
-**Vehicles:**
-- Plate lookup with cache hit/miss
-- Rate limiting enforcement
-- Invalid plate format handling
-
----
-
-## 11. Deployment
-
-### 11.1 Docker Configuration
-
-```dockerfile
-# Dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/prisma ./prisma
-RUN npx prisma generate
-EXPOSE 3000
-CMD ["node", "dist/server.js"]
+```json
+{
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint src/"
+  }
+}
 ```
 
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  api:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=mysql://user:password@db:3306/kiwicar
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - db
-      - redis
-
-  db:
-    image: mysql:8
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: kiwicar
-    volumes:
-      - mysql_data:/var/lib/mysql
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-
-volumes:
-  mysql_data:
-  redis_data:
-```
-
-### 11.2 CI/CD Pipeline
-
-1. **On push to main:**
-   - Run linting
-   - Run unit tests
-   - Run integration tests
-   - Build Docker image
-   - Deploy to staging
-
-2. **On release tag:**
-   - Run full test suite
-   - Build production Docker image
-   - Run database migrations
-   - Deploy to production
-   - Run smoke tests
-
-### 11.3 Health Check Endpoint
+### 10.3 Health Check Endpoint
 
 ```typescript
 // GET /health
 app.get('/health', async (req, res) => {
-  const checks = {
-    database: await checkDatabase(),
-    redis: await checkRedis(),
-    nzta: await checkNZTA(),
-  };
+  const { error } = await supabaseAdmin.from('profiles').select('id').limit(1);
 
-  const healthy = Object.values(checks).every(c => c.status === 'ok');
-
-  res.status(healthy ? 200 : 503).json({
-    status: healthy ? 'healthy' : 'unhealthy',
+  res.status(error ? 503 : 200).json({
+    status: error ? 'unhealthy' : 'healthy',
     timestamp: new Date().toISOString(),
-    checks,
+    database: error ? 'disconnected' : 'connected',
   });
 });
 ```
 
 ---
 
-## 12. Phase Breakdown
+## 11. Phase Breakdown
 
 ### Phase 1 (MVP) - P0 Features
 
-- [ ] Project setup (Express, TypeScript, Prisma)
-- [ ] Database schema and migrations
-- [ ] Authentication (register, login, password reset)
+- [ ] Project setup (Express, TypeScript, Supabase client)
+- [ ] Supabase database tables and triggers
+- [ ] Auth middleware (verify Supabase JWT)
 - [ ] User profile management
-- [ ] Vehicle lookup (NZTA integration) with caching
+- [ ] Vehicle lookup (NZTA integration) with DB caching
 - [ ] Listings CRUD with validation
-- [ ] Image upload and storage
+- [ ] Image upload via Supabase Storage
 - [ ] Basic search and filters
 - [ ] Favorites management
-- [ ] Price alerts (email-based)
 - [ ] AI description generation
 - [ ] AI price estimation
-- [ ] Rate limiting
+- [ ] Rate limiting (in-memory)
 - [ ] Error handling and logging
 - [ ] Basic tests
 
 ### Phase 2 - P1 Features
 
-- [ ] Social login (Google, Facebook)
 - [ ] Messaging system
-- [ ] Real-time notifications (WebSocket)
+- [ ] Price alerts with email notifications
+- [ ] Real-time notifications (Supabase Realtime)
 - [ ] Advanced analytics for sellers
 - [ ] Enhanced AI features
 - [ ] Full test coverage
-- [ ] Performance optimization
 
 ### Phase 3 - P2 Features
 
-- [ ] Apple Sign In
 - [ ] Push notifications
-- [ ] Data scraping integration
 - [ ] Premium/paid features
 - [ ] Dealer accounts and tools
+- [ ] Redis caching layer for performance
+- [ ] Docker containerization for deployment
 
 ---
 
-## 13. Version History
+## 12. Version History
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | Jan 2026 | Initial specification | - |
+| 2.0 | Feb 2026 | Migrate to Supabase (auth, DB, storage); remove Redis, Docker, JWT; simplify for lean MVP | - |

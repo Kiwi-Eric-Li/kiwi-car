@@ -58,7 +58,7 @@ To modify landing page content, edit these data files:
 Detailed specifications are in `docs/prd/`:
 - **landing-page.md**: Copy modifications and content guide for KiwiCar branding
 - **frontend.md**: Full React SPA specification (Vite, TypeScript, TanStack Query, Zustand)
-- **backend.md**: Node.js/Express API specification (Prisma, MySQL, Redis, JWT auth)
+- **backend.md**: Node.js/Express API specification (Supabase, lean MVP)
 
 ## Planned Architecture (From PRDs)
 
@@ -70,9 +70,9 @@ Detailed specifications are in `docs/prd/`:
 
 ### Backend (kiwicar-backend/)
 - Express.js with TypeScript
-- Prisma ORM with MySQL
-- Redis for caching and rate limiting
-- JWT authentication with refresh tokens
+- Supabase for database (PostgreSQL), authentication, and file storage
+- Zod for request validation
 - NZTA API integration for vehicle data
 - OpenAI GPT-4 for AI features (descriptions, pricing)
-- SendGrid for emails, S3/R2 for image storage
+- In-memory rate limiting (express-rate-limit)
+- No Redis, no Docker — lean MVP run locally
