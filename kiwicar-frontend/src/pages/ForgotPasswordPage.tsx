@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Car, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Card from '@/components/common/Card';
@@ -15,9 +16,9 @@ const forgotPasswordSchema = z.object({
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
+  const { resetPassword, isLoading } = useAuthStore();
 
   const {
     register,
@@ -28,16 +29,14 @@ export default function ForgotPasswordPage() {
   });
 
   const onSubmit = async (data: ForgotPasswordFormData) => {
-    setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await resetPassword(data.email);
       setSubmittedEmail(data.email);
       setIsSubmitted(true);
     } catch {
-      // Handle error
-    } finally {
-      setIsLoading(false);
+      // Still show success to avoid leaking whether email exists
+      setSubmittedEmail(data.email);
+      setIsSubmitted(true);
     }
   };
 

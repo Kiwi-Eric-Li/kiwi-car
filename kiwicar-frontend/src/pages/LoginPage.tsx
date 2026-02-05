@@ -43,11 +43,12 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      await login(data);
+      await login({ email: data.email, password: data.password });
       toast.success('Welcome back!');
       navigate(from, { replace: true });
-    } catch (_error) {
-      toast.error('Invalid email or password. Please try again.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid email or password. Please try again.';
+      toast.error(message);
     }
   };
 

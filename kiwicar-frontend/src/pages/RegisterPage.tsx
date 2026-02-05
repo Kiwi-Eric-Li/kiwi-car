@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Car, Check } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/common/Toast';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
@@ -45,8 +46,8 @@ const passwordRequirements = [
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signUp, isLoading } = useAuthStore();
   const toast = useToast();
 
   const {
@@ -67,18 +68,18 @@ export default function RegisterPage() {
 
   const password = watch('password', '');
 
-  const onSubmit = async (_data: RegisterFormData) => {
-    setIsLoading(true);
+  const onSubmit = async (data: RegisterFormData) => {
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      await signUp({
+        email: data.email,
+        password: data.password,
+        phone: data.phone,
+      });
       toast.success('Account created! Please check your email to verify.');
       navigate('/login');
-    } catch (_error) {
-      toast.error('Something went wrong. Please try again.');
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+      toast.error(message);
     }
   };
 
