@@ -7,13 +7,13 @@ export const addFavoriteSchema = z.object({
   body: z.object({
     listingId: z.string().regex(uuidPattern, 'Invalid listing ID format'),
     priceAlert: z.boolean().optional(),
-    targetPrice: z.number().positive().optional(),
+    targetPrice: z.number().positive().optional().nullable(),
   }),
 });
 
 export const updateAlertSchema = z.object({
   body: z.object({
     priceAlert: z.boolean(),
-    targetPrice: z.number().positive().optional(),
+    targetPrice: z.number().positive().optional().nullable(),
   }),
 });

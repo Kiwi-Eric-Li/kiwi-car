@@ -5,7 +5,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 export const createListingSchema = z.object({
   body: z.object({
-    plateNumber: z.string().min(1).max(7),
+    plateNumber: z.string().min(1).max(10),
     make: z.string().min(1).max(50),
     model: z.string().min(1).max(50),
     year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
@@ -13,8 +13,8 @@ export const createListingSchema = z.object({
     price: z.number().min(100).max(10000000),
     description: z.string().min(10).max(5000),
     region: z.string().min(1),
-    fuelType: z.enum(['PETROL', 'DIESEL', 'HYBRID', 'ELECTRIC', 'OTHER']),
-    transmission: z.enum(['AUTOMATIC', 'MANUAL']),
+    fuelType: z.string().min(1),
+    transmission: z.string().min(1),
     bodyType: z.string().min(1),
     color: z.string().min(1),
     vin: z.string().optional().nullable(),
@@ -29,14 +29,14 @@ export const updateListingSchema = z.object({
     year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
     mileage: z.number().int().min(0).max(1000000).optional(),
     price: z.number().min(100).max(10000000).optional(),
-    description: z.string().min(50).max(5000).optional(),
+    description: z.string().min(10).max(5000).optional(),
     region: z.string().min(1).optional(),
-    fuelType: z.enum(['PETROL', 'DIESEL', 'HYBRID', 'ELECTRIC', 'OTHER']).optional(),
-    transmission: z.enum(['AUTOMATIC', 'MANUAL']).optional(),
+    fuelType: z.string().min(1).optional(),
+    transmission: z.string().min(1).optional(),
     bodyType: z.string().min(1).optional(),
     color: z.string().min(1).optional(),
-    vin: z.string().optional(),
-    images: z.array(z.string().regex(uuidPattern)).min(3).max(10).optional(),
+    vin: z.string().optional().nullable(),
+    images: z.array(z.string().regex(uuidPattern)).optional(),
   }),
 });
 

@@ -9,6 +9,7 @@ import type {
   ProfileRow,
   ListingCardResponse,
   ListingResponse,
+  MyListingCardResponse,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,17 @@ function toListingCard(
     transmission: listing.transmission,
     coverImage,
     createdAt: listing.created_at,
+  };
+}
+
+function toMyListingCard(
+  listing: ListingRow,
+  coverImage: string | null,
+): MyListingCardResponse {
+  return {
+    ...toListingCard(listing, coverImage),
+    status: listing.status,
+    views: listing.views,
   };
 }
 
@@ -594,11 +606,11 @@ export async function getMyListings(req: Request, res: Response, _next: NextFunc
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  const cards: ListingCardResponse[] = (listings ?? []).map((listing: any) => {
+  const cards: MyListingCardResponse[] = (listings ?? []).map((listing: any) => {
     const images = listing.listing_images as ListingImageRow[] | null;
     const cover = images?.find((img) => img.order === 0);
     const coverImage = cover?.image_url ?? images?.[0]?.image_url ?? null;
-    return toListingCard(listing as ListingRow, coverImage);
+    return toMyListingCard(listing as ListingRow, coverImage);
   });
 
   res.json({

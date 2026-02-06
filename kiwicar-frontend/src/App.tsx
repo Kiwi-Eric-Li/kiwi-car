@@ -14,6 +14,18 @@ import {
   NotFoundPage,
 } from '@/pages';
 import { SellPage } from '@/pages/sell';
+import { ProfilePage, MyListingsPage, EditListingPage, FavoritesPage } from '@/pages/account';
+
+// Protected route wrapper
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: window.location.pathname }} replace />;
+  }
+
+  return <>{children}</>;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,23 +82,50 @@ export default function App() {
               }
             />
 
-            {/* Account routes placeholder */}
+            {/* Account routes (protected) */}
             <Route
-              path="/account/*"
+              path="/account/profile"
               element={
-                <Layout>
-                  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                    <div className="text-center">
-                      <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                        Account
-                      </h1>
-                      <p className="text-gray-500">
-                        Account pages are coming soon!
-                      </p>
-                    </div>
-                  </div>
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <ProfilePage />
+                  </Layout>
+                </ProtectedRoute>
               }
+            />
+            <Route
+              path="/account/listings"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <MyListingsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account/listings/:listingId/edit"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <EditListingPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account/favorites"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <FavoritesPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={<Navigate to="/account/profile" replace />}
             />
 
             {/* 404 */}

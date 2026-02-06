@@ -180,6 +180,11 @@ export interface ListingCardResponse {
   createdAt: string;
 }
 
+export interface MyListingCardResponse extends ListingCardResponse {
+  status: string;
+  views: number;
+}
+
 export interface PaginationMeta {
   page: number;
   limit: number;
