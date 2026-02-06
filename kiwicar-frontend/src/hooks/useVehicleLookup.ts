@@ -1,12 +1,11 @@
 import { useState, useCallback } from 'react';
-import { mockVehicleLookup } from '@/mock/data';
+import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import type { VehicleInfo } from '@/types';
 import { formatPlate } from '@/utils/format';
 
 const GUEST_LIMIT = 3;
 const AUTH_LIMIT = 10;
-const STORAGE_KEY = 'kiwicar-lookup-count';
 
 interface LookupQuota {
   used: number;
@@ -14,101 +13,111 @@ interface LookupQuota {
   remaining: number;
 }
 
-function getStoredCount(): number {
-  const stored = sessionStorage.getItem(STORAGE_KEY);
-  if (!stored) return 0;
-
-  try {
-    const data = JSON.parse(stored);
-    const today = new Date().toDateString();
-    if (data.date === today) {
-      return data.count;
-    }
-    return 0;
-  } catch {
-    return 0;
-  }
+interface VehicleInfoResponse {
+  plateNumber: string;
+  make: string;
+  model: string;
+  year: number;
+  bodyStyle: string | null;
+  color: string | null;
+  engineCc: number | null;
+  fuelType: string | null;
+  wofStatus: string | null;
+  wofExpiry: string | null;
+  regoStatus: string | null;
+  regoExpiry: string | null;
+  firstRegistered: string | null;
+  odometerReadings: { date: string; reading: number }[] | null;
+  cached: boolean;
+  fetchedAt: string;
 }
 
-function incrementCount(): void {
-  const count = getStoredCount() + 1;
-  sessionStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      date: new Date().toDateString(),
-      count,
-    })
-  );
+function mapToVehicleInfo(data: VehicleInfoResponse): VehicleInfo {
+  return {
+    plate: data.plateNumber,
+    make: data.make,
+    model: data.model,
+    year: data.year,
+    bodyType: data.bodyStyle || 'Unknown',
+    fuelType: data.fuelType || 'Unknown',
+    color: data.color || 'Unknown',
+    wofStatus: (data.wofStatus?.toLowerCase() === 'current' ? 'current' :
+                data.wofStatus?.toLowerCase() === 'expired' ? 'expired' : 'unknown') as 'current' | 'expired' | 'unknown',
+    wofExpiry: data.wofExpiry || undefined,
+    regoStatus: (data.regoStatus?.toLowerCase() === 'current' ? 'current' :
+                 data.regoStatus?.toLowerCase() === 'expired' ? 'expired' : 'unknown') as 'current' | 'expired' | 'unknown',
+    regoExpiry: data.regoExpiry || undefined,
+    firstRegisteredNZ: data.firstRegistered || undefined,
+    odometerHistory: data.odometerReadings?.map((r) => ({
+      date: r.date,
+      reading: r.reading,
+      source: 'WOF Inspection',
+    })) || [],
+  };
 }
 
 /**
- * Hook for vehicle plate lookup
+ * Hook for vehicle plate lookup via API
  */
 export function useVehicleLookup() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<VehicleInfo | null>(null);
+  const [quota, setQuota] = useState<LookupQuota>({ used: 0, limit: GUEST_LIMIT, remaining: GUEST_LIMIT });
   const { isAuthenticated } = useAuthStore();
 
+  // Update quota limits based on auth status
   const limit = isAuthenticated ? AUTH_LIMIT : GUEST_LIMIT;
-  const used = getStoredCount();
-  const remaining = Math.max(0, limit - used);
 
   const lookup = useCallback(
     async (plate: string): Promise<VehicleInfo | null> => {
       setError(null);
       setVehicle(null);
 
-      // Check quota
-      if (remaining <= 0) {
-        setError(
-          isAuthenticated
-            ? 'You have reached your daily lookup limit. Please try again tomorrow.'
-            : 'You have reached your daily lookup limit. Sign in for more lookups.'
-        );
+      const formattedPlate = formatPlate(plate);
+
+      if (!formattedPlate || formattedPlate.length < 2) {
+        setError('Please enter a valid plate number');
         return null;
       }
 
-      const formattedPlate = formatPlate(plate);
       setIsLoading(true);
 
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      try {
+        const response = await apiClient.get<VehicleInfoResponse>(`/vehicles/${formattedPlate}`);
+        const vehicleInfo = mapToVehicleInfo(response.data);
+        setVehicle(vehicleInfo);
 
-      // Look up in mock data
-      const found = mockVehicleLookup[formattedPlate];
+        // Update local quota tracking
+        setQuota((prev) => ({
+          ...prev,
+          used: prev.used + 1,
+          remaining: Math.max(0, prev.remaining - 1),
+        }));
 
-      if (found) {
-        incrementCount();
-        setVehicle(found);
+        return vehicleInfo;
+      } catch (err: any) {
+        console.error('Vehicle lookup failed:', err);
+
+        // Handle rate limit error
+        if (err.response?.status === 429) {
+          const message = isAuthenticated
+            ? 'You have reached your daily lookup limit. Please try again tomorrow.'
+            : 'You have reached your daily lookup limit. Sign in for more lookups.';
+          setError(message);
+          setQuota((prev) => ({ ...prev, remaining: 0 }));
+        } else if (err.response?.data?.error?.message) {
+          setError(err.response.data.error.message);
+        } else {
+          setError('Failed to lookup vehicle. Please try again.');
+        }
+
+        return null;
+      } finally {
         setIsLoading(false);
-        return found;
-      } else {
-        // For demo purposes, generate mock data for any valid plate
-        const mockVehicle: VehicleInfo = {
-          plate: formattedPlate,
-          make: 'Unknown',
-          model: 'Model',
-          year: 2020,
-          bodyType: 'Sedan',
-          fuelType: 'Petrol',
-          color: 'Silver',
-          wofStatus: 'current',
-          wofExpiry: '2025-12-01',
-          regoStatus: 'current',
-          regoExpiry: '2025-10-15',
-          firstRegisteredNZ: '2020-01-15',
-          odometerHistory: [
-            { date: '2024-12-01', reading: 50000, source: 'WOF Inspection' },
-          ],
-        };
-        incrementCount();
-        setVehicle(mockVehicle);
-        setIsLoading(false);
-        return mockVehicle;
       }
     },
-    [remaining, isAuthenticated]
+    [isAuthenticated]
   );
 
   const reset = useCallback(() => {
@@ -116,18 +125,15 @@ export function useVehicleLookup() {
     setError(null);
   }, []);
 
-  const quota: LookupQuota = {
-    used,
-    limit,
-    remaining,
-  };
-
   return {
     lookup,
     reset,
     vehicle,
     isLoading,
     error,
-    quota,
+    quota: {
+      ...quota,
+      limit,
+    },
   };
 }

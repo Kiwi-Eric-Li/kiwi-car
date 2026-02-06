@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
   Share2,
@@ -17,6 +17,7 @@ import {
 import { cn } from '@/utils';
 import { formatPrice, formatMileage, formatDate, formatRelativeTime } from '@/utils/format';
 import { useListing, useSimilarListings } from '@/hooks/useListings';
+import { useFavorites } from '@/hooks/useFavorites';
 import { useAuthStore } from '@/stores/authStore';
 import Button from '@/components/common/Button';
 import Badge from '@/components/common/Badge';
@@ -27,13 +28,17 @@ import { ImageGallery, ListingCard, VehicleInfoCard } from '@/components/feature
 
 export default function ListingDetailPage() {
   const { listingId } = useParams<{ listingId: string }>();
+  const navigate = useNavigate();
   const { listing, isLoading, isError } = useListing(listingId || '');
   const { listings: similarListings } = useSimilarListings(listingId || '');
   const { isAuthenticated } = useAuthStore();
+  const { isFavorite: checkIsFavorite, toggleFavorite } = useFavorites();
 
-  const [isFavorite, setIsFavorite] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showVehicleInfo, setShowVehicleInfo] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isFavorite = listingId ? checkIsFavorite(listingId) : false;
 
   if (isLoading) {
     return <PageSpinner />;
@@ -55,13 +60,20 @@ export default function ListingDetailPage() {
 
   const priceAnalysis = listing.priceAnalysis;
 
-  const handleFavoriteToggle = () => {
+  const handleFavoriteToggle = async () => {
     if (!isAuthenticated) {
-      // Could show login modal here
-      window.location.href = '/login';
+      navigate('/login', { state: { from: `/buy/${listingId}` } });
       return;
     }
-    setIsFavorite(!isFavorite);
+    if (!listingId || isSaving) return;
+
+    setIsSaving(true);
+    const result = await toggleFavorite(listingId);
+    setIsSaving(false);
+
+    if (result.requiresAuth) {
+      navigate('/login', { state: { from: `/buy/${listingId}` } });
+    }
   };
 
   const handleShare = async () => {

@@ -1,7 +1,8 @@
 # KiwiCar Frontend PRD
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 **Created:** January 2026
+**Updated:** February 2026
 **Status:** Draft
 **Application Type:** React Single Page Application (SPA)
 
@@ -232,7 +233,7 @@ kiwicar-frontend/
 
 **API Endpoints:**
 - `GET /api/listings/:id` - Fetch listing details
-- `GET /api/listings/:id/vehicle-info` - Fetch NZTA data
+- `GET /api/vehicles/:plateNumber` - Fetch NZTA data (use plateNumber from listing)
 - `GET /api/listings/:id/similar` - Fetch similar listings
 - `POST /api/favorites` - Save listing
 - `DELETE /api/favorites/:listingId` - Remove from favorites
@@ -385,8 +386,9 @@ kiwicar-frontend/
 - `POST /api/ai/generate-description` - Generate description
 - `GET /api/ai/price-estimate` - Get price recommendation
 - `POST /api/listings` - Create listing
-- `GET /api/listings/my/drafts` - Get saved drafts
-- `PUT /api/listings/drafts/:id` - Save draft
+- `GET /api/listings/drafts` - Get saved drafts
+- `POST /api/listings/drafts` - Save new draft
+- `PUT /api/listings/drafts/:id` - Update existing draft
 
 ---
 
@@ -448,13 +450,20 @@ kiwicar-frontend/
 - Token validity check
 - Password requirements
 
-**API Endpoints:**
-- `POST /api/auth/login` - Login
-- `POST /api/auth/register` - Register
-- `POST /api/auth/forgot-password` - Request reset
-- `POST /api/auth/reset-password` - Reset password
-- `GET /api/auth/verify-email/:token` - Verify email
-- `POST /api/auth/refresh` - Refresh token
+**Auth Integration (Supabase Client SDK — No backend endpoints):**
+
+Authentication is handled entirely via the Supabase JS client on the frontend. No `/api/auth/*` backend routes exist.
+
+| Operation | Supabase Method | Status |
+|-----------|----------------|--------|
+| Register | `supabase.auth.signUp({ email, password, options: { data: { phone } } })` | Implemented |
+| Login | `supabase.auth.signInWithPassword({ email, password })` | Implemented |
+| Forgot password | `supabase.auth.resetPasswordForEmail(email)` | Implemented |
+| Reset password | Handled via Supabase email link + `supabase.auth.updateUser({ password })` | Implemented |
+| Email verification | Supabase built-in (automatic email on signup) | Implemented |
+| Token refresh | Supabase client handles automatically | Implemented |
+| Logout | `supabase.auth.signOut()` | Implemented |
+| Session persistence | `supabase.auth.getSession()` + `onAuthStateChange()` | Implemented |
 
 ---
 
@@ -510,6 +519,7 @@ kiwicar-frontend/
 - `GET /api/users/me` - Get profile
 - `PUT /api/users/me` - Update profile
 - `POST /api/users/me/avatar` - Upload avatar
+- `DELETE /api/users/me` - Delete account
 - `GET /api/favorites` - Get favorites
 - `GET /api/favorites/alerts` - Get alerts
 - `PUT /api/favorites/:id/alert` - Update alert
@@ -517,6 +527,7 @@ kiwicar-frontend/
 - `PUT /api/listings/:id` - Update listing
 - `PUT /api/listings/:id/status` - Change status (sold/active)
 - `DELETE /api/listings/:id` - Delete listing
+- `DELETE /api/uploads/images/:id` - Delete uploaded image
 
 ---
 
@@ -545,6 +556,7 @@ kiwicar-frontend/
 - `GET /api/messages/conversations/:id` - Get messages
 - `POST /api/messages` - Send message
 - `PUT /api/messages/conversations/:id/read` - Mark read
+- `GET /api/messages/unread-count` - Get unread message count (for nav badge)
 - WebSocket: Real-time message updates (P1)
 
 ---
@@ -595,15 +607,21 @@ kiwicar-frontend/
 
 ### 5.1 Zustand Stores
 
-**`authStore`**
+**`authStore`** (implemented — uses Supabase Auth)
 ```typescript
 interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
+  isLoading: boolean;
+  isInitialized: boolean;
+  initialize: () => Promise<void>;           // getSession + onAuthStateChange listener
+  login: (credentials: { email: string; password: string }) => Promise<void>;
+  signUp: (data: { email: string; password: string; phone?: string }) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
+  setLoading: (loading: boolean) => void;
 }
 ```
 
@@ -673,6 +691,10 @@ const queryKeys = {
 
 ```typescript
 // api/client.ts
+import axios from 'axios';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
+
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   timeout: 10000,
@@ -681,11 +703,11 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor - add auth token
-apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Request interceptor - add Supabase auth token
+apiClient.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
   }
   return config;
 });
@@ -703,13 +725,23 @@ apiClient.interceptors.response.use(
 );
 ```
 
+> **Note:** The token is retrieved from `supabase.auth.getSession()` rather than from the Zustand store, ensuring Supabase handles token refresh automatically.
+
 ### 6.2 Environment Variables
 
 ```env
-VITE_API_URL=https://api.kiwicar.co.nz
+# Backend API
+VITE_API_URL=http://localhost:3001/api
+
+# Supabase (required for auth)
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# Landing page
 VITE_LANDING_URL=https://kiwicar.co.nz
-VITE_GOOGLE_CLIENT_ID=xxx
-VITE_FACEBOOK_APP_ID=xxx
+
+# OAuth (P1 — not yet implemented)
+# VITE_GOOGLE_CLIENT_ID=xxx
 ```
 
 ---
@@ -843,12 +875,13 @@ const listingSchema = z.object({
 
 ### 12.1 Frontend Security
 
-- Store JWT in httpOnly cookie (preferred) or secure local storage
-- CSRF protection via SameSite cookies
+- Auth tokens managed by Supabase client SDK (localStorage-based session with automatic refresh)
+- Supabase access token attached to API requests via Axios interceptor
+- 401 responses trigger automatic logout and redirect to `/login`
 - Input sanitization (prevent XSS)
 - Content Security Policy headers
-- No sensitive data in client-side code
-- Secure environment variable handling
+- No sensitive data (service role keys, etc.) in client-side code — only the Supabase anon key is exposed
+- Secure environment variable handling via Vite `VITE_` prefix
 
 ### 12.2 Data Handling
 
@@ -925,8 +958,8 @@ const listingSchema = z.object({
 
 ### Phase 1 (MVP) - P0 Features
 
-- [ ] Project setup (Vite, React, TypeScript, Tailwind)
-- [ ] Authentication (login, register, forgot password)
+- [x] Project setup (Vite, React, TypeScript, Tailwind)
+- [x] Authentication (login, register, forgot password) — via Supabase Auth
 - [ ] Listing browse page with filters
 - [ ] Listing detail page
 - [ ] Plate lookup page
@@ -961,3 +994,4 @@ const listingSchema = z.object({
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | Jan 2026 | Initial specification | - |
+| 1.1 | Feb 2026 | Align API endpoints with backend PRD: replace /api/auth/* with Supabase Auth SDK; fix vehicle-info and draft endpoints; add missing endpoints (unread-count, account deletion, image deletion, avatar upload); update API client code, env vars, and security section to reflect Supabase integration; mark auth and project setup as done in phase checklist | - |

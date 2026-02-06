@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Grid, List, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/utils';
 import { useListings, countActiveFilters } from '@/hooks/useListings';
+import { useFavorites } from '@/hooks/useFavorites';
 import { useFilterStore } from '@/stores/filterStore';
+import { useAuthStore } from '@/stores/authStore';
 import Button from '@/components/common/Button';
 import Select from '@/components/common/Select';
 import { SkeletonCard } from '@/components/common';
 import { ListingCard, FilterPanel, SearchBar } from '@/components/features';
-import type { SortOption } from '@/types';
+import type { SortOption, ListingCard as ListingCardType } from '@/types';
 
 const sortOptions = [
   { value: 'newest', label: 'Newest Listed' },
@@ -20,12 +22,29 @@ const sortOptions = [
 
 export default function BrowsePage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const { filters, setFilter, loadFromQueryString } = useFilterStore();
   const { listings, isLoading, total } = useListings();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isAuthenticated } = useAuthStore();
   const activeFilterCount = countActiveFilters(filters);
+
+  // Map listings with favorite status
+  const listingsWithFavorites: ListingCardType[] = listings.map((listing) => ({
+    ...listing,
+    isFavorite: isFavorite(listing.id),
+  }));
+
+  const handleFavoriteToggle = async (listingId: string) => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/buy' } });
+      return;
+    }
+    await toggleFavorite(listingId);
+  };
 
   // Load filters from URL on mount
   useEffect(() => {
@@ -155,11 +174,12 @@ export default function BrowsePage() {
                     : 'grid-cols-1'
                 )}
               >
-                {listings.map((listing) => (
+                {listingsWithFavorites.map((listing) => (
                   <ListingCard
                     key={listing.id}
                     listing={listing}
                     variant={viewMode}
+                    onFavoriteToggle={handleFavoriteToggle}
                   />
                 ))}
               </div>

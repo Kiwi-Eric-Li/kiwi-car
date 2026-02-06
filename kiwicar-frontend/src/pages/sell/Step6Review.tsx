@@ -18,6 +18,7 @@ import {
 import { formatPrice, formatMileage } from '@/utils/format';
 import { useListingWizardStore } from '@/stores/listingWizardStore';
 import { useToast } from '@/components/common/Toast';
+import { apiClient } from '@/api/client';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Checkbox from '@/components/common/Checkbox';
@@ -50,18 +51,38 @@ export default function Step6Review({ onBack, onEditStep }: Step6ReviewProps) {
   const canPublish = acceptedTerms && vehicleDetails && photos.length >= 3 && description && price && region;
 
   const handlePublish = async () => {
-    if (!canPublish) return;
+    if (!canPublish || !vehicleDetails) return;
 
     setIsPublishing(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      // Call the backend API to create the listing
+      const response = await apiClient.post<{ id: string; message: string }>('/listings', {
+        plateNumber: vehicleDetails.plate || '',
+        make: vehicleDetails.make,
+        model: vehicleDetails.model,
+        year: vehicleDetails.year,
+        mileage: vehicleDetails.mileage,
+        price: price,
+        description: description,
+        region: region,
+        fuelType: vehicleDetails.fuelType.toUpperCase(),
+        transmission: vehicleDetails.transmission.toUpperCase(),
+        bodyType: vehicleDetails.bodyType,
+        color: vehicleDetails.color,
+        vin: vehicleDetails.vin || null,
+        // Note: Image upload would need to be implemented separately
+        // images: photos.map(p => p.id),
+      });
 
-    // Generate mock listing ID
-    const listingId = Math.random().toString(36).slice(2, 10);
-    setPublishedListingId(listingId);
-    setIsPublishing(false);
-    setShowSuccessModal(true);
+      setPublishedListingId(response.data.id);
+      setShowSuccessModal(true);
+    } catch (err: any) {
+      console.error('Failed to publish listing:', err);
+      toast.error(err.response?.data?.error?.message || 'Failed to publish listing. Please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const handleCopyLink = async () => {

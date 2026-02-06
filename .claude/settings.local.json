@@ -5,7 +5,15 @@
       "Bash(tree:*)",
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 10 npx ts-node:*)",
+      "Bash(timeout 15 npx ts-node:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

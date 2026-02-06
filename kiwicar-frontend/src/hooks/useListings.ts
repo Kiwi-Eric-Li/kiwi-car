@@ -1,163 +1,313 @@
-import { useState, useMemo, useCallback } from 'react';
-import { mockListings, mockListingCards, mockFilterOptions } from '@/mock/data';
+import { useState, useEffect, useCallback } from 'react';
+import { apiClient } from '@/api/client';
 import { useFilterStore } from '@/stores/filterStore';
-import type { FilterOptions, ListingFilters } from '@/types';
+import type { FilterOptions, ListingFilters, ListingCard, Listing } from '@/types';
 
-// Simulate API delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+interface ListingCardResponse {
+  id: string;
+  title: string;
+  price: number;
+  year: number;
+  mileage: number;
+  region: string;
+  fuelType: string;
+  transmission: string;
+  coverImage: string | null;
+  createdAt: string;
+}
+
+interface ListingsResponse {
+  data: ListingCardResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+interface ListingDetailResponse {
+  id: string;
+  plateNumber: string;
+  make: string;
+  model: string;
+  year: number;
+  mileage: number;
+  price: number;
+  description: string;
+  aiDescription: string | null;
+  aiPriceMin: number | null;
+  aiPriceMax: number | null;
+  aiPriceRecommended: number | null;
+  status: string;
+  region: string;
+  fuelType: string;
+  transmission: string;
+  bodyType: string;
+  color: string;
+  vin: string | null;
+  views: number;
+  createdAt: string;
+  updatedAt: string;
+  images: { id: string; url: string; order: number }[];
+  seller: {
+    id: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    memberSince: string;
+    listingsCount: number;
+  };
+}
+
+function mapToListingCard(item: ListingCardResponse): ListingCard {
+  return {
+    id: item.id,
+    title: item.title,
+    price: item.price,
+    negotiable: false,
+    year: item.year,
+    mileage: item.mileage,
+    fuelType: item.fuelType,
+    transmission: item.transmission,
+    location: item.region,
+    image: item.coverImage || '/placeholder-car.jpg',
+    isFavorite: false,
+    createdAt: item.createdAt,
+  };
+}
+
+function mapToListing(item: ListingDetailResponse): Listing {
+  return {
+    id: item.id,
+    sellerId: item.seller.id,
+    sellerName: item.seller.nickname || 'Seller',
+    sellerAvatar: item.seller.avatarUrl || undefined,
+    sellerJoinedDate: item.seller.memberSince,
+    plate: item.plateNumber,
+    make: item.make,
+    model: item.model,
+    year: item.year,
+    bodyType: item.bodyType,
+    fuelType: item.fuelType,
+    transmission: item.transmission,
+    color: item.color,
+    mileage: item.mileage,
+    price: item.price,
+    negotiable: false,
+    description: item.description,
+    aiDescription: item.aiDescription || undefined,
+    region: item.region,
+    images: item.images.map((img) => img.url),
+    views: item.views,
+    favorites: 0,
+    status: item.status.toLowerCase() as 'active' | 'sold' | 'draft',
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    priceAnalysis: item.aiPriceMin && item.aiPriceMax && item.aiPriceRecommended
+      ? {
+          suggestedMin: item.aiPriceMin,
+          suggestedRecommended: item.aiPriceRecommended,
+          suggestedMax: item.aiPriceMax,
+          rating: item.price <= item.aiPriceRecommended ? 'good' : item.price <= item.aiPriceMax ? 'fair' : 'above',
+          explanation: `Based on market analysis, this ${item.year} ${item.make} ${item.model} is priced ${item.price <= item.aiPriceRecommended ? 'competitively' : 'above average'} for its condition and mileage.`,
+        }
+      : undefined,
+  };
+}
+
+function buildQueryParams(filters: ListingFilters): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.keyword) params.set('q', filters.keyword);
+  if (filters.makes?.length) params.set('make', filters.makes.join(','));
+  if (filters.priceMin) params.set('minPrice', String(filters.priceMin));
+  if (filters.priceMax) params.set('maxPrice', String(filters.priceMax));
+  if (filters.yearMin) params.set('minYear', String(filters.yearMin));
+  if (filters.yearMax) params.set('maxYear', String(filters.yearMax));
+  if (filters.mileageMin) params.set('minMileage', String(filters.mileageMin));
+  if (filters.mileageMax) params.set('maxMileage', String(filters.mileageMax));
+  if (filters.regions?.length) params.set('region', filters.regions.join(','));
+  if (filters.fuelTypes?.length) params.set('fuelType', filters.fuelTypes[0]);
+  if (filters.transmissions?.length) params.set('transmission', filters.transmissions[0]);
+  if (filters.bodyTypes?.length) params.set('bodyType', filters.bodyTypes[0]);
+  if (filters.sortBy) params.set('sort', filters.sortBy);
+
+  return params;
+}
 
 /**
- * Hook for fetching and filtering listings
+ * Hook for fetching and filtering listings from API
  */
 export function useListings() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [listings, setListings] = useState<ListingCard[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const { filters } = useFilterStore();
 
-  const filteredListings = useMemo(() => {
-    let results = [...mockListingCards];
+  const fetchListings = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
 
-    // Keyword search
-    if (filters.keyword) {
-      const keyword = filters.keyword.toLowerCase();
-      results = results.filter((listing) =>
-        listing.title.toLowerCase().includes(keyword) ||
-        listing.location.toLowerCase().includes(keyword)
-      );
+    try {
+      const params = buildQueryParams(filters);
+      const response = await apiClient.get<ListingsResponse>(`/listings?${params.toString()}`);
+      const cards = response.data.data.map(mapToListingCard);
+      setListings(cards);
+      setTotal(response.data.pagination.total);
+    } catch (err: any) {
+      console.error('Failed to fetch listings:', err);
+      setError(err.message || 'Failed to load listings');
+      setListings([]);
+      setTotal(0);
+    } finally {
+      setIsLoading(false);
     }
-
-    // Make filter
-    if (filters.makes?.length) {
-      results = results.filter((listing) => {
-        const make = listing.title.split(' ')[1]; // "2019 Toyota Corolla" -> "Toyota"
-        return filters.makes!.includes(make);
-      });
-    }
-
-    // Price range
-    if (filters.priceMin) {
-      results = results.filter((listing) => listing.price >= filters.priceMin!);
-    }
-    if (filters.priceMax) {
-      results = results.filter((listing) => listing.price <= filters.priceMax!);
-    }
-
-    // Year range
-    if (filters.yearMin) {
-      results = results.filter((listing) => listing.year >= filters.yearMin!);
-    }
-    if (filters.yearMax) {
-      results = results.filter((listing) => listing.year <= filters.yearMax!);
-    }
-
-    // Mileage range
-    if (filters.mileageMin) {
-      results = results.filter((listing) => listing.mileage >= filters.mileageMin!);
-    }
-    if (filters.mileageMax) {
-      results = results.filter((listing) => listing.mileage <= filters.mileageMax!);
-    }
-
-    // Region filter
-    if (filters.regions?.length) {
-      results = results.filter((listing) => filters.regions!.includes(listing.location));
-    }
-
-    // Fuel type filter
-    if (filters.fuelTypes?.length) {
-      results = results.filter((listing) => filters.fuelTypes!.includes(listing.fuelType));
-    }
-
-    // Transmission filter
-    if (filters.transmissions?.length) {
-      results = results.filter((listing) => filters.transmissions!.includes(listing.transmission));
-    }
-
-    // Sorting
-    switch (filters.sortBy) {
-      case 'price_asc':
-        results.sort((a, b) => a.price - b.price);
-        break;
-      case 'price_desc':
-        results.sort((a, b) => b.price - a.price);
-        break;
-      case 'mileage_asc':
-        results.sort((a, b) => a.mileage - b.mileage);
-        break;
-      case 'year_desc':
-        results.sort((a, b) => b.year - a.year);
-        break;
-      case 'newest':
-      default:
-        results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-    }
-
-    return results;
   }, [filters]);
 
-  const refetch = useCallback(async () => {
-    setIsLoading(true);
-    await delay(300); // Simulate network delay
-    setIsLoading(false);
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
+
+  return {
+    listings,
+    isLoading,
+    total,
+    error,
+    refetch: fetchListings,
+  };
+}
+
+/**
+ * Hook for fetching a single listing from API
+ */
+export function useListing(id: string) {
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      setIsLoading(false);
+      setIsError(true);
+      return;
+    }
+
+    const fetchListing = async () => {
+      setIsLoading(true);
+      setIsError(false);
+
+      try {
+        const response = await apiClient.get<ListingDetailResponse>(`/listings/${id}`);
+        setListing(mapToListing(response.data));
+      } catch (err) {
+        console.error('Failed to fetch listing:', err);
+        setIsError(true);
+        setListing(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchListing();
+  }, [id]);
+
+  return {
+    listing,
+    isLoading,
+    isError,
+  };
+}
+
+/**
+ * Hook for getting similar listings from API
+ */
+export function useSimilarListings(listingId: string) {
+  const [listings, setListings] = useState<ListingCard[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!listingId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchSimilar = async () => {
+      setIsLoading(true);
+
+      try {
+        const response = await apiClient.get<ListingCardResponse[]>(`/listings/${listingId}/similar`);
+        setListings(response.data.map(mapToListingCard));
+      } catch (err) {
+        console.error('Failed to fetch similar listings:', err);
+        setListings([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSimilar();
+  }, [listingId]);
+
+  return {
+    listings,
+    isLoading,
+  };
+}
+
+interface FilterOptionsResponse {
+  makes: { value: string; label: string; count: number }[];
+  regions: { value: string; label: string; count: number }[];
+  bodyTypes: { value: string; label: string; count: number }[];
+  fuelTypes: { value: string; label: string; count: number }[];
+  transmissions: { value: string; label: string; count: number }[];
+  priceRange: { min: number; max: number };
+  yearRange: { min: number; max: number };
+  mileageRange: { min: number; max: number };
+}
+
+/**
+ * Hook for getting filter options from API
+ */
+export function useFilterOptions(): { options: FilterOptions; isLoading: boolean } {
+  const [options, setOptions] = useState<FilterOptions>({
+    makes: [],
+    models: {},
+    regions: [],
+    fuelTypes: [],
+    transmissions: [],
+    bodyTypes: [],
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const response = await apiClient.get<FilterOptionsResponse>('/filters/options');
+        const data = response.data;
+
+        // Map API response to FilterOptions format
+        setOptions({
+          makes: data.makes.map((m) => m.value),
+          models: {}, // Backend doesn't return models per make yet
+          regions: data.regions.map((r) => r.value),
+          fuelTypes: data.fuelTypes.map((f) => f.value),
+          transmissions: data.transmissions.map((t) => t.value),
+          bodyTypes: data.bodyTypes.map((b) => b.value),
+        });
+      } catch (err) {
+        console.error('Failed to fetch filter options:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOptions();
   }, []);
 
   return {
-    listings: filteredListings,
+    options,
     isLoading,
-    total: filteredListings.length,
-    refetch,
-  };
-}
-
-/**
- * Hook for fetching a single listing
- */
-export function useListing(id: string) {
-  // For mock data, we directly return the listing synchronously
-  const foundListing = mockListings.find((l) => l.id === id);
-
-  return {
-    listing: foundListing || null,
-    isLoading: false,
-    isError: !foundListing,
-  };
-}
-
-/**
- * Hook for getting similar listings
- */
-export function useSimilarListings(listingId: string) {
-  const currentListing = mockListings.find((l) => l.id === listingId);
-
-  const similarListings = useMemo(() => {
-    if (!currentListing) return [];
-
-    return mockListingCards
-      .filter((l) => l.id !== listingId)
-      .filter((l) => {
-        const listing = mockListings.find((ml) => ml.id === l.id);
-        return (
-          listing?.make === currentListing.make ||
-          listing?.bodyType === currentListing.bodyType ||
-          Math.abs(listing!.price - currentListing.price) < 10000
-        );
-      })
-      .slice(0, 4);
-  }, [listingId, currentListing]);
-
-  return {
-    listings: similarListings,
-    isLoading: false,
-  };
-}
-
-/**
- * Hook for getting filter options
- */
-export function useFilterOptions(): { options: FilterOptions; isLoading: boolean } {
-  return {
-    options: mockFilterOptions,
-    isLoading: false,
   };
 }
 

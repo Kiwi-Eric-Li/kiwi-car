@@ -1,6 +1,6 @@
 # KiwiCar Backend PRD
 
-**Document Version:** 2.0
+**Document Version:** 2.1
 **Created:** January 2026
 **Updated:** February 2026
 **Status:** Draft
@@ -25,7 +25,7 @@ The backend server handles:
 - Image upload via Supabase Storage
 - Rate limiting and security
 
-**Authentication** is handled entirely by Supabase Auth on the client side. The backend verifies Supabase JWTs on protected routes but does not implement its own auth flows.
+**Authentication** is handled entirely by Supabase Auth on the client side (already implemented in the frontend). The backend verifies Supabase JWTs on protected routes but does not implement its own auth flows.
 
 ### 1.3 Tech Stack
 
@@ -41,7 +41,7 @@ The backend server handles:
 
 **Supabase provides:**
 - PostgreSQL database (data storage)
-- Auth (registration, login, password reset, email verification, OAuth)
+- Auth (registration, login, password reset, email verification, OAuth) — **frontend integration complete**
 - Storage (image uploads with CDN)
 - Row Level Security (RLS) as an additional safety net
 
@@ -121,11 +121,13 @@ CREATE TABLE profiles (
 );
 
 -- Auto-create profile on signup via Supabase trigger
+-- Note: The frontend stores phone in user_metadata during signUp,
+-- so the trigger extracts it from raw_user_meta_data.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
+  INSERT INTO public.profiles (id, email, phone)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'phone');
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -246,13 +248,23 @@ CREATE TABLE lookup_quotas (
 
 ### 3.1 Users (`/api/users`)
 
-Authentication (register, login, password reset, OAuth) is handled entirely by Supabase Auth on the frontend. The backend only manages user profile data.
+Authentication (register, login, password reset, OAuth) is handled entirely by Supabase Auth on the frontend and is **already implemented**. The frontend uses:
+- `supabase.auth.signUp()` — registration with email/password; phone stored in `user_metadata`
+- `supabase.auth.signInWithPassword()` — login
+- `supabase.auth.resetPasswordForEmail()` — password reset
+- `supabase.auth.signOut()` — logout
+- `supabase.auth.getSession()` / `onAuthStateChange()` — session persistence
+
+The API client (`apiClient`) automatically attaches the Supabase access token via an Axios request interceptor, and handles 401 responses by logging the user out and redirecting to `/login`.
+
+The backend only manages user profile data (the `profiles` table).
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | GET | `/me` | Get current user profile | Yes |
-| PUT | `/me` | Update profile | Yes |
-| DELETE | `/me` | Delete account | Yes |
+| PUT | `/me` | Update profile (profiles table + optionally `supabase.auth.admin.updateUserById` for email/phone) | Yes |
+| POST | `/me/avatar` | Upload avatar image (Supabase Storage `avatars` bucket, updates `avatar_url` in profiles) | Yes |
+| DELETE | `/me` | Delete account (calls `supabase.auth.admin.deleteUser`; profiles cascade via FK) | Yes |
 | GET | `/me/lookup-quota` | Get remaining lookups | Yes |
 
 **GET /me**
@@ -282,6 +294,17 @@ Request:
 }
 ```
 
+**POST /me/avatar**
+
+Request: `multipart/form-data` with `avatar` field (single file, max 2MB, JPG/PNG/WebP)
+
+Response (200):
+```json
+{
+  "avatarUrl": "https://<project>.supabase.co/storage/v1/object/public/avatars/<user-id>.webp"
+}
+```
+
 ---
 
 ### 3.2 Listings (`/api/listings`)
@@ -296,8 +319,9 @@ Request:
 | PUT | `/:id/status` | Update listing status | Yes (owner) |
 | GET | `/:id/similar` | Get similar listings | No |
 | GET | `/my` | Get user's listings | Yes |
-| POST | `/drafts` | Save draft | Yes |
+| POST | `/drafts` | Save new draft | Yes |
 | GET | `/drafts` | Get user's drafts | Yes |
+| PUT | `/drafts/:id` | Update existing draft | Yes (owner) |
 
 **GET /** (List Listings)
 
@@ -803,15 +827,35 @@ async function generateDescription(vehicleData: VehicleData): Promise<string> {
 
 ## 5. Authentication & Security
 
-### 5.1 Supabase Auth
+### 5.1 Supabase Auth (Frontend — Implemented)
 
-Authentication is fully managed by Supabase. The frontend uses the Supabase client SDK for:
-- Email/password registration and login
-- Password reset via email
-- Email verification
-- OAuth providers (Google, etc.) — can be enabled in Supabase dashboard
+Authentication is fully managed by Supabase and has been **implemented on the frontend** (`kiwicar-frontend`). The frontend auth stack:
 
-The backend only needs to **verify the JWT** from incoming requests using `supabase.auth.getUser(token)`. No password hashing, token generation, or session management is needed on the backend.
+| Feature | Implementation | Status |
+|---------|---------------|--------|
+| Email/password registration | `supabase.auth.signUp()` with phone in `user_metadata` | Done |
+| Email/password login | `supabase.auth.signInWithPassword()` | Done |
+| Password reset | `supabase.auth.resetPasswordForEmail()` | Done |
+| Logout | `supabase.auth.signOut()` | Done |
+| Session persistence | `supabase.auth.getSession()` + `onAuthStateChange()` listener | Done |
+| Auth state management | Zustand store (`authStore.ts`) | Done |
+| API token injection | Axios request interceptor attaches `Bearer` token | Done |
+| 401 handling | Axios response interceptor triggers logout + redirect | Done |
+| Email verification | Supabase built-in (user prompted after signup) | Done |
+| OAuth providers (Google, etc.) | Can be enabled in Supabase dashboard | Not yet |
+
+**Frontend auth files:**
+- `src/stores/authStore.ts` — Zustand store with login/signUp/resetPassword/logout/initialize
+- `src/lib/supabase.ts` — Supabase client instance
+- `src/api/client.ts` — Axios client with auth interceptors
+- `src/pages/LoginPage.tsx` — Login form (email + password)
+- `src/pages/RegisterPage.tsx` — Registration form (email + password + optional phone)
+- `src/pages/ForgotPasswordPage.tsx` — Password reset request form
+
+**What the backend needs to do:**
+- Verify Supabase JWTs on protected routes using `supabase.auth.getUser(token)` (in `auth.middleware.ts`)
+- No password hashing, token generation, or session management is needed
+- For account deletion (`DELETE /me`), call `supabase.auth.admin.deleteUser()` with the service role key
 
 ### 5.2 Rate Limiting
 
@@ -1120,8 +1164,9 @@ app.get('/health', async (req, res) => {
 
 - [ ] Project setup (Express, TypeScript, Supabase client)
 - [ ] Supabase database tables and triggers
-- [ ] Auth middleware (verify Supabase JWT)
-- [ ] User profile management
+- [x] **Frontend auth integration** (login, register, password reset, logout via Supabase Auth — implemented in `kiwicar-frontend`)
+- [ ] Auth middleware (verify Supabase JWT on backend routes)
+- [ ] User profile management (`/api/users/me` CRUD)
 - [ ] Vehicle lookup (NZTA integration) with DB caching
 - [ ] Listings CRUD with validation
 - [ ] Image upload via Supabase Storage
@@ -1158,3 +1203,4 @@ app.get('/health', async (req, res) => {
 |---------|------|---------|--------|
 | 1.0 | Jan 2026 | Initial specification | - |
 | 2.0 | Feb 2026 | Migrate to Supabase (auth, DB, storage); remove Redis, Docker, JWT; simplify for lean MVP | - |
+| 2.1 | Feb 2026 | Document completed frontend Supabase Auth integration; update profiles trigger to sync phone from user_metadata; clarify backend-only responsibilities (JWT verify, account deletion); mark auth as done in phase checklist; add PUT /drafts/:id and POST /me/avatar endpoints for frontend alignment | - |
