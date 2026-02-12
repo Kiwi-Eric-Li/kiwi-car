@@ -3,6 +3,7 @@ import { PriceEstimateResponse, PriceScoreResponse } from '@/types';
 import { openai } from '@/config/openai';
 import { env } from '@/config/env';
 import logger from '@/utils/logger';
+import { AppError } from '@/utils/errors';
 
 // ---------------------------------------------------------------------------
 // Generate Description
@@ -442,8 +443,8 @@ export async function getPriceScore(params: PriceScoreParams): Promise<PriceScor
     const raw = JSON.parse(response.choices[0].message.content!);
     return priceScoreResponseSchema.parse(raw);
   } catch (error) {
-    logger.warn('OpenAI price score failed, using fallback', { error });
-    const estimate = await getPriceEstimateFallback(params);
-    return getPriceScoreFallback(params, estimate);
+    logger.error('OpenAI price score failed', { error });
+    const message = error instanceof Error ? error.message : 'AI price score service unavailable';
+    throw new AppError(502, message, 'AI_PRICE_SCORE_FAILED');
   }
 }

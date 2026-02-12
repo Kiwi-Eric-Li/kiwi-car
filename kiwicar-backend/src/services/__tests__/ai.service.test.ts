@@ -495,55 +495,46 @@ describe('getPriceScore', () => {
     expect(userMessage.content).toContain('Auckland');
   });
 
-  it('falls back to rule-based on OpenAI API error', async () => {
+  it('throws AppError on OpenAI API error', async () => {
     (env as any).OPENAI_API_KEY = 'sk-real-key';
     mockCreate.mockRejectedValue(new Error('API connection error'));
 
-    const result = await getPriceScore({
+    await expect(getPriceScore({
       price: 28000,
       make: 'Toyota',
       model: 'Corolla',
       year: 2024,
       mileage: 50000,
-    });
-
-    expect(result.score).toBe(6);
-    expect(result.rating).toBe('fair');
+    })).rejects.toThrow('API connection error');
   });
 
-  it('falls back to rule-based on invalid JSON from OpenAI', async () => {
+  it('throws AppError on invalid JSON from OpenAI', async () => {
     (env as any).OPENAI_API_KEY = 'sk-real-key';
     mockCreate.mockResolvedValue({
       choices: [{ message: { content: 'not valid json' } }],
     });
 
-    const result = await getPriceScore({
+    await expect(getPriceScore({
       price: 28000,
       make: 'Toyota',
       model: 'Corolla',
       year: 2024,
       mileage: 50000,
-    });
-
-    expect(result.score).toBe(6);
-    expect(result.rating).toBe('fair');
+    })).rejects.toThrow();
   });
 
-  it('falls back to rule-based when OpenAI returns invalid schema', async () => {
+  it('throws AppError when OpenAI returns invalid schema', async () => {
     (env as any).OPENAI_API_KEY = 'sk-real-key';
     mockCreate.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify({ wrong: 'shape' }) } }],
     });
 
-    const result = await getPriceScore({
+    await expect(getPriceScore({
       price: 28000,
       make: 'Toyota',
       model: 'Corolla',
       year: 2024,
       mileage: 50000,
-    });
-
-    expect(result.score).toBe(6);
-    expect(result.rating).toBe('fair');
+    })).rejects.toThrow();
   });
 });
