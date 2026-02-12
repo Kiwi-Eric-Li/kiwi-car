@@ -19,6 +19,7 @@ export const RATE_LIMITS = {
   VEHICLE_LOOKUP_GUEST: { perDay: 3 },
   VEHICLE_LOOKUP_AUTH: { perDay: 10 },
   AI_GENERATION: { windowMs: 24 * 60 * 60 * 1000, max: 20 },
+  PRICE_ESTIMATE: { windowMs: 24 * 60 * 60 * 1000, max: 30 },
 } as const;
 
 export const PAGINATION = {

@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "lint": "eslint src/",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
-    "migrate": "ts-node -r tsconfig-paths/register src/scripts/migrate.ts"
+    "migrate": "ts-node -r tsconfig-paths/register src/scripts/migrate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "license": "UNLICENSED",
@@ -23,6 +25,7 @@
     "helmet": "^8.1.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
+    "openai": "^6.21.0",
     "uuid": "^13.0.0",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
@@ -38,6 +41,7 @@
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }

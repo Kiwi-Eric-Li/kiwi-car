@@ -110,6 +110,14 @@ export interface PriceAnalysis {
   explanation: string;
 }
 
+export interface PriceScoreResponse {
+  score: number;
+  rating: 'excellent' | 'good' | 'fair' | 'overpriced' | 'underpriced';
+  summary: string;
+  suggestedRange: { min: number; max: number };
+  factors: { factor: string; impact: 'positive' | 'negative' | 'neutral' }[];
+}
+
 // Filter types
 export interface ListingFilters {
   keyword?: string;

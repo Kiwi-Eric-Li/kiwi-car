@@ -210,6 +210,17 @@ export interface PriceEstimateResponse {
   };
 }
 
+export interface PriceScoreResponse {
+  score: number;
+  rating: 'excellent' | 'good' | 'fair' | 'overpriced' | 'underpriced';
+  summary: string;
+  suggestedRange: {
+    min: number;
+    max: number;
+  };
+  factors: { factor: string; impact: 'positive' | 'negative' | 'neutral' }[];
+}
+
 export interface FilterOptionsResponse {
   makes: { value: string; label: string; count: number }[];
   regions: { value: string; label: string; count: number }[];

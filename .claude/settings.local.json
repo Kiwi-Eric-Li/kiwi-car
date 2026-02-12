@@ -13,7 +13,16 @@
       "Bash(findstr:*)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "WebSearch",
+      "Bash(npx vitest run)",
+      "Bash(npm test:*)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:pricepertoken.com)",
+      "WebFetch(domain:community.openai.com)",
+      "WebFetch(domain:docs.aimlapi.com)",
+      "Bash(npx vite:*)"
     ]
   }
 }

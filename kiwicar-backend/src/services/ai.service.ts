@@ -1,4 +1,8 @@
-import { PriceEstimateResponse } from '@/types';
+import { z } from 'zod';
+import { PriceEstimateResponse, PriceScoreResponse } from '@/types';
+import { openai } from '@/config/openai';
+import { env } from '@/config/env';
+import logger from '@/utils/logger';
 
 // ---------------------------------------------------------------------------
 // Generate Description
@@ -153,7 +157,7 @@ function getBasePrice(make: string, model: string): number {
   return DEFAULT_BASE_PRICE;
 }
 
-export async function getPriceEstimate(params: PriceEstimateParams): Promise<PriceEstimateResponse> {
+export async function getPriceEstimateFallback(params: PriceEstimateParams): Promise<PriceEstimateResponse> {
   // Simulate API latency
   await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -280,4 +284,166 @@ function simpleHash(str: string): number {
     hash = hash & hash;
   }
   return Math.abs(hash);
+}
+
+// ---------------------------------------------------------------------------
+// LLM-Powered Price Score
+// ---------------------------------------------------------------------------
+
+interface PriceScoreParams {
+  price: number;
+  make: string;
+  model: string;
+  year: number;
+  mileage: number;
+  region?: string;
+  fuelType?: string;
+  transmission?: string;
+}
+
+const PRICE_SCORE_SYSTEM_PROMPT = `You are a New Zealand used car pricing expert. A user has proposed a price for a vehicle. Evaluate whether their price is fair based on the NZ used car market (TradeMe, Turners, dealer pricing). Return a JSON object matching the provided schema.
+
+Scoring guide:
+- 1-2: Extremely overpriced, well above market value
+- 3-4: Overpriced, above typical market range
+- 5-6: Fair, within the expected market range
+- 7-8: Good value, at or below typical market price
+- 9-10: Excellent deal, significantly below market value`;
+
+function buildPriceScoreUserPrompt(params: PriceScoreParams): string {
+  const lines = [
+    `Evaluate this price:`,
+    `- Asking price: $${params.price.toLocaleString()} NZD`,
+    `- Make: ${params.make}`,
+    `- Model: ${params.model}`,
+    `- Year: ${params.year}`,
+    `- Mileage: ${params.mileage.toLocaleString()} km`,
+  ];
+  if (params.region) lines.push(`- Region: ${params.region}`);
+  if (params.fuelType) lines.push(`- Fuel type: ${params.fuelType}`);
+  if (params.transmission) lines.push(`- Transmission: ${params.transmission}`);
+  return lines.join('\n');
+}
+
+const priceScoreResponseSchema = z.object({
+  score: z.number().int().min(1).max(10),
+  rating: z.enum(['excellent', 'good', 'fair', 'overpriced', 'underpriced']),
+  summary: z.string(),
+  suggestedRange: z.object({
+    min: z.number(),
+    max: z.number(),
+  }),
+  factors: z.array(z.object({
+    factor: z.string(),
+    impact: z.enum(['positive', 'negative', 'neutral']),
+  })),
+});
+
+const priceScoreJsonSchema = {
+  name: 'price_score',
+  strict: true,
+  schema: {
+    type: 'object' as const,
+    properties: {
+      score: { type: 'number' as const },
+      rating: { type: 'string' as const, enum: ['excellent', 'good', 'fair', 'overpriced', 'underpriced'] },
+      summary: { type: 'string' as const },
+      suggestedRange: {
+        type: 'object' as const,
+        properties: {
+          min: { type: 'number' as const },
+          max: { type: 'number' as const },
+        },
+        required: ['min', 'max'],
+        additionalProperties: false,
+      },
+      factors: {
+        type: 'array' as const,
+        items: {
+          type: 'object' as const,
+          properties: {
+            factor: { type: 'string' as const },
+            impact: { type: 'string' as const, enum: ['positive', 'negative', 'neutral'] },
+          },
+          required: ['factor', 'impact'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['score', 'rating', 'summary', 'suggestedRange', 'factors'],
+    additionalProperties: false,
+  },
+};
+
+export function getPriceScoreFallback(params: PriceScoreParams, estimate: PriceEstimateResponse): PriceScoreResponse {
+  const { priceRecommended, priceMin, priceMax } = estimate;
+  const ratio = params.price / priceRecommended;
+
+  let score: number;
+  let rating: PriceScoreResponse['rating'];
+
+  if (ratio <= 0.85) {
+    score = 9;
+    rating = 'underpriced';
+  } else if (ratio <= 0.95) {
+    score = 7;
+    rating = 'good';
+  } else if (ratio <= 1.05) {
+    score = 6;
+    rating = 'fair';
+  } else if (ratio <= 1.15) {
+    score = 4;
+    rating = 'overpriced';
+  } else {
+    score = 2;
+    rating = 'overpriced';
+  }
+
+  const diff = params.price - priceRecommended;
+  const diffStr = diff >= 0
+    ? `$${diff.toLocaleString()} above`
+    : `$${Math.abs(diff).toLocaleString()} below`;
+
+  const summary = `Your asking price of $${params.price.toLocaleString()} for this ${params.year} ${params.make} ${params.model} is ${diffStr} the estimated market value of $${priceRecommended.toLocaleString()}.`;
+
+  return {
+    score,
+    rating,
+    summary,
+    suggestedRange: { min: priceMin, max: priceMax },
+    factors: estimate.factors.map((f) => ({
+      factor: f.factor,
+      impact: f.impact.startsWith('+') ? 'positive' as const : f.impact.startsWith('-') ? 'negative' as const : 'neutral' as const,
+    })),
+  };
+}
+
+export async function getPriceScore(params: PriceScoreParams): Promise<PriceScoreResponse> {
+  if (env.OPENAI_API_KEY === 'mock') {
+    const estimate = await getPriceEstimateFallback(params);
+    return getPriceScoreFallback(params, estimate);
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4.1-nano',
+      temperature: 0.3,
+      max_tokens: 600,
+      response_format: {
+        type: 'json_schema',
+        json_schema: priceScoreJsonSchema,
+      },
+      messages: [
+        { role: 'system', content: PRICE_SCORE_SYSTEM_PROMPT },
+        { role: 'user', content: buildPriceScoreUserPrompt(params) },
+      ],
+    });
+
+    const raw = JSON.parse(response.choices[0].message.content!);
+    return priceScoreResponseSchema.parse(raw);
+  } catch (error) {
+    logger.warn('OpenAI price score failed, using fallback', { error });
+    const estimate = await getPriceEstimateFallback(params);
+    return getPriceScoreFallback(params, estimate);
+  }
 }

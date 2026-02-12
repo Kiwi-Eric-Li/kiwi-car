@@ -25,3 +25,12 @@ export const aiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const priceEstimateLimiter = rateLimit({
+  windowMs: RATE_LIMITS.PRICE_ESTIMATE.windowMs,
+  max: RATE_LIMITS.PRICE_ESTIMATE.max,
+  keyGenerator: (req) => req.user?.id || req.ip || 'unknown',
+  message: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Price estimate limit reached for today.' } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
